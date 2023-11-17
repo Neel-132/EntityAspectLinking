@@ -12,7 +12,7 @@ class TextEmbedding(nn.Module):
 		self.device = device
 		self.model = SentenceTransformer(pretrained, device=device)
 		if torch.cuda.is_available():
-    		self.model = model.cuda()
+			self.model = model.cuda()
 
 	@torch.no_grad()
 	def forward(self, sent):
