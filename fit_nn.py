@@ -127,7 +127,7 @@ def train(train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_decay =
 		with torch.no_grad():
 			model.eval()
 			trainloss = evaluate(train_loader, model, loss_fn)[0]
-			valloss = evaluate(train_loader, model, loss_fn)[0]
+			valloss = evaluate(val_loader, model, loss_fn)[0]
 			if valloss < best_devloss:
 				best_devloss = valloss
 				bestepoch = epoch
@@ -142,7 +142,7 @@ def train(train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_decay =
 			print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, trainloss, valloss))
 
 
-		if epoch - bestepoch >= 10:
+		if epoch - bestepoch >= 50:
 			print("Early stopping")
 			break
 
