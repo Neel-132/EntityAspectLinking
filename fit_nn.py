@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset, random_split
 from torcheval.metrics.functional import multiclass_f1_score
 from imblearn.under_sampling import RandomUnderSampler
+from sklearn.preprocessing import StandardScaler
 from tqdm.auto import trange
 import torch.optim as optim
 from statistics import mean
@@ -15,18 +16,22 @@ CKP = 'C:\\Users\\Neela\\Documents\\GitHub\\EntityAspectLinking\\checkpoint\\'
 device = 'cpu'
 class Network(nn.Module):
 
-	def __init__(self, inp, hidden_1 = 256, hidden_2 = 128, hidden_3 = 64, device = None):
+	def __init__(self, inp, hidden_1 = 256, hidden_2 = 128, hidden_3 = 64, hidden_4 = 32, device = None):
 
 		super(Network, self).__init__()
 		self.device = device
 		self.model = nn.Sequential(nn.Linear(inp, hidden_1, bias = True),  
 			nn.LeakyReLU(),
-			nn.Dropout(0.4),
+			nn.Dropout(0.8),
 			nn.Linear(hidden_1, hidden_2, bias = True), 
 			nn.LeakyReLU(), 
-			nn.Dropout(0.8),
+			nn.Dropout(0.9),
 			nn.Linear(hidden_2, hidden_3, bias = True),
-			nn.Linear(hidden_3, 1))
+			nn.LeakyReLU(),
+			nn.Linear(hidden_3, hidden_4, bias = True),
+			nn.LeakyReLU(),
+			nn.Dropout(0.9),
+			nn.Linear(hidden_4, 1))
 		self.model.to(device)
 		self.apply(self._init_weights)
 
@@ -50,6 +55,8 @@ def prepare_dataset(file, train_ratio, val_ratio, batch_size,):
 		data = pickle.load(f)
 	f.close()	
 	features = data[ : , : -1]
+	sc = StandardScaler()
+	features = sc.fit_transform(features)
 	#print(features.shape)
 	target = data[:, -1]
 	undersample = RandomUnderSampler(sampling_strategy='majority')
@@ -142,7 +149,7 @@ def train(train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_decay =
 			print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, trainloss, valloss))
 
 
-		if epoch - bestepoch >= 50:
+		if epoch - bestepoch >= 10:
 			print("Early stopping")
 			break
 
