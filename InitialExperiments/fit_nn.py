@@ -10,8 +10,8 @@ import torch.optim as optim
 from statistics import mean
 import sys
 import pickle
-PTH = 'C:\\Users\\Neela\\Documents\\GitHub\\EntityAspectLinking\\picklefiles'
-CKP = 'C:\\Users\\Neela\\Documents\\GitHub\\EntityAspectLinking\\checkpoint\\'
+PTH = 'C:\\Users\\Neela\\Documents\\GitHub\\EntityAspectLinking\\InitialExperiments\\picklefiles'
+CKP = 'C:\\Users\\Neela\\Documents\\GitHub\\EntityAspectLinking\\InitialExperiments\\checkpoint\\'
 #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = 'cpu'
 class Network(nn.Module):

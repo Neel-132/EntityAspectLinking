@@ -17,15 +17,17 @@ class TextEmbedding(nn.Module):
 	@torch.no_grad()
 	def forward(self, sent):
 		x = self.model.encode(sent , show_progress_bar=True, convert_to_tensor=True, device=self.device)
-		return x.cpu()
+		return x
 
 
 class EntityEmbedding(nn.Module):
-	def __init__(self, pretrained):
+	def __init__(self, pretrained, device = None):
 		super(EntityEmbedding, self).__init__()
+		self.device = device
 		self.pretrained = pretrained
 		self.config = AutoConfig.from_pretrained(self.pretrained)
 		self.bert = AutoModel.from_pretrained(self.pretrained, config = self.pretrained)
+		self.bert.to(device)
 
 	def forward(self, input_ids, dim = 100):
 		with torch.no_grad():
