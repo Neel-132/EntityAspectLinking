@@ -10,13 +10,11 @@ class TextEmbedding(nn.Module):
 		#self.config = AutoConfig.from_pretrained(self.pretrained)
 		#self.bert = AutoModel.from_pretrained(self.pretrained, config = self.config)
 		self.device = device
-		self.model = SentenceTransformer(pretrained, device=device)
-		if torch.cuda.is_available():
-			self.model = model.cuda()
+		self.model = SentenceTransformer(pretrained, device=device).to(device)
 
 	@torch.no_grad()
 	def forward(self, sent):
-		x = self.model.encode(sent , show_progress_bar=True, convert_to_tensor=True, device=self.device)
+		x = self.model.encode(sent , show_progress_bar=False, convert_to_tensor=True, device=self.device)
 		return x
 
 
