@@ -14,7 +14,7 @@ class TextEmbedding(nn.Module):
 
 	@torch.no_grad()
 	def forward(self, sent):
-		x = self.model.encode(sent , show_progress_bar=False, convert_to_tensor=True, device=self.device)
+		x = self.model.encode(sent, show_progress_bar=False, convert_to_tensor=True, device=self.device)
 		return x
 
 

@@ -141,7 +141,7 @@ def train(file, train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_d
 				best_devloss = valloss
 				bestepoch = epoch
 				torch.save(model.state_dict(),
-                               f"{CKP}\\DNN_EAL_trainsmall_para.pt")
+                               f"{CKP}\\DNN_EAL_trainsmall_sent.pt")
 			if lr_scheduler is not None:
 				lr_scheduler.step(valloss)
 				

@@ -1,6 +1,6 @@
 import torch
 import pickle
-from fit_nn_para_trainsmall import Network
+from fit_nn_sent_trainsmall import Network
 from torcheval.metrics.functional import multiclass_f1_score
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
