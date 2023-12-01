@@ -11,3 +11,4 @@ Experiment_trainsmall/Paragraph/picklefiles/baselinedataset_trainsmall.pkl
 Experiment_trainsmall/Paragraph/picklefiles/baselinedataset_test.pkl
 Experiment_trainsmall/Sentence/prep_baselinedataset_test.ipynb
 Experiment_trainsmall/Sentence/picklefiles/baselinedataset_test.pkl
+Experiment_trainsmall/Sentence/picklefiles/baselinedataset_trainsmall.pkl
