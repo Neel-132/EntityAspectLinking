@@ -10,8 +10,8 @@ import torch.optim as optim
 from statistics import mean
 import sys
 import pickle
-PTH = 'C:\\Users\\Neela\\Documents\\GitHub\\EntityAspectLinking\\Experiment_trainsmall\\picklefiles'
-CKP = 'C:\\Users\\Neela\\Documents\\GitHub\\EntityAspectLinking\\Experiment_trainsmall\\checkpoint\\'
+PTH = r'.\picklefiles'
+CKP = r'.\checkpoint'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 #device = 'cpu'
 class Network(nn.Module):
@@ -50,23 +50,25 @@ class Network(nn.Module):
 		pred = self.model(x)
 		return pred
 
-def prepare_dataset(file, train_ratio, val_ratio, batch_size,):
+def read_pickle(file):
 	with open(f'{PTH}\\{file}', 'rb') as f:
 		data = pickle.load(f)
-	f.close()	
+	f.close()
+	return data
+def prepare_dataset(file, train_ratio, val_ratio, batch_size,):
+	data = read_pickle(file)
 	features = data[ : , : -1]
 	sc = StandardScaler()
 	features = sc.fit_transform(features)
-	#print(features.shape)
 	target = data[:, -1]
-	undersample = RandomUnderSampler(sampling_strategy='majority')
-	features, target = undersample.fit_resample(features, target)
-	data = TensorDataset(torch.tensor(features), torch.tensor(target))
+	#undersample = RandomUnderSampler(sampling_strategy='majority')
+	#features, target = undersample.fit_resample(features, target)
+	train_data = TensorDataset(torch.tensor(features), torch.tensor(target))
 	size = features.shape[0]
 	train_size = int(train_ratio * size)
 	val_size = int(val_ratio * size)
 	test_size = size - train_size - val_size
-	train_dataset, val_dataset, test_dataset = random_split(data, [train_size, val_size, test_size])
+	train_dataset, val_dataset, test_dataset = random_split(train_data, [train_size, val_size, test_size])
 	train_loader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 	val_loader = DataLoader(val_dataset, batch_size = batch_size, shuffle = True)
 	test_loader = DataLoader(test_dataset, batch_size = batch_size, shuffle = True)
@@ -94,13 +96,14 @@ def evaluate(dataloader, model, loss):
 		
 
 
-def train(file, train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_decay = 1e-4):
+def train(file, train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_decay = 1e-4, scaling_factor = 1):
 	best_devloss = sys.maxsize
 	loss_val = []
 	avg_loss_epoch = []
 	train_loss = []
 	valid_loss = []
-	loss_fn = nn.BCEWithLogitsLoss()
+	pos_weight = torch.tensor([scaling_factor]).to(device)
+	loss_fn = nn.BCEWithLogitsLoss(pos_weight = pos_weight)
 	train_loader, val_loader, test_loader = prepare_dataset(file, train_ratio, val_ratio, batch_size)
 	model = Network(584, device = device)
 	opt = optim.Adam(model.parameters(),
@@ -138,7 +141,7 @@ def train(file, train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_d
 				best_devloss = valloss
 				bestepoch = epoch
 				torch.save(model.state_dict(),
-                               f"{CKP}DNN_EAL_rand.pt")
+                               f"{CKP}\\DNN_EAL_trainsmall_para.pt")
 			if lr_scheduler is not None:
 				lr_scheduler.step(valloss)
 				
@@ -165,7 +168,8 @@ def train(file, train_ratio, val_ratio, batch_size, epochs, lr = 0.001, weight_d
 for data in train_loader:
 	x, y = data
 	x = x.to(device)
-	print(x.size())'''
-train('baselinedataset_trainsmall.pkl', 0.8, 0.1, 128, 100)
+print(x.size())'''
+if __name__ == '__main__':
+	train('baselinedataset_trainsmall.pkl', 0.8, 0.1, 128, 100, scaling_factor = 5.58)
 
 
