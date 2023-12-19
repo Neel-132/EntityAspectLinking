@@ -55,14 +55,14 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 		aspect_key = {}
 		print('Learning aspect embeddings......')
 		for i in tqdm(range(len(data))):
-		    aspect = asp[i]['true_aspect']
-		    true_aspect_id = asp[i]['true_aspect_id']
+		    aspect = data[i]['true_aspect']
+		    true_aspect_id = data[i]['true_aspect_id']
 		    tokens = tokenizer.tokenize(aspect)
 		    input_ids = tokenizer.convert_tokens_to_ids(tokens)
 		    input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
 		    if true_aspect_id not in aspect_key:
 		        aspect_key[true_aspect_id] = ent_emb(input_ids, dim = dim)
-		    for element in asp[i]['candidate_aspects']:
+		    for element in data[i]['candidate_aspects']:
 		        if len(element['aspect_name']) == 0:
 		            continue
 		        if element['aspect_id'] != true_aspect_id:
@@ -79,6 +79,28 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 			ind += 1
 		print('Done learning aspect embeddings.')
 		return aspect_key, asp_emb
+
+	elif subject == 'a_entities':
+		a_entity_key = {}
+		print('Learning embeddings of entities associated to aspect content.....')
+		for i in tqdm(range(len(data))):
+		    tasp_id = data[i]['true_aspect_id']
+		    for el in data[i]['candidate_aspects']:
+		        asp_id = el['aspect_id']
+		        for ent in el['entities']:
+		            if ent['entity_id'] not in a_entity_key.keys():
+		                entity = ent['entity_name']
+		                token = tokenizer.tokenize(entity)
+		                input_ids = tokenizer.convert_tokens_to_ids(token)
+		                input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
+		                a_entity_key[ent['entity_id']] = ent_emb(input_ids, dim = dim)
+		a_entity_emb = torch.zeros(len(a_entity_key), dim)
+		ind = 0
+		for el in a_entity_key:
+			a_entity_emb[ind] = a_entity_key[el]
+		print('Done learning aspect content associated entity embeddings.')
+		return a_entity_key, a_entity_emb
+
 
 
 
