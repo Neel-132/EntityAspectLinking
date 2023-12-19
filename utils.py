@@ -116,8 +116,7 @@ def read_file(input_filename, path = PTH) -> dict[int]:
     return data
 
 
-def read_emb(input_filename, path = PTH):
-    pass
+
 
 
 
