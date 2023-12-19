@@ -1,0 +1,7 @@
+Main:
+  pickle: ./picklefiles
+  run: ./runfiles
+  graphimg: ./graph_images
+  csv: ./csvfiles
+  checkpoint: ./checkpoint
+
