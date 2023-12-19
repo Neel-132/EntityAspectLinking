@@ -11,7 +11,7 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 	pretrained = pretrained
 	ent_emb = embedding.EntityEmbedding(pretrained = pretrained, device = device)
 	if subject not in ['target_entity', 'aspect', 't_entitites', 'a_entities']:
-		print('Please select one of target_entity, aspect, t_entitites, a_entities as subject'):
+		print('Please select one of target_entity, aspect, t_entitites, a_entities as subject')
 		return
 	elif subject == 'target_entity':
 		size = len(data)
@@ -24,35 +24,61 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 				continue
 			tokens = tokenizer.tokenize(entity)
 			input_ids = tokenizer.convert_tokens_to_ids(tokens)
-    		input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
-    		target_emb[i] = ent_emb(input_ids, dim = 150)
-    	print('Done learning target entity embeddings.')
-    	return target_emb
+			input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
+			target_emb[i] = ent_emb(input_ids, dim = 150)
+		print('Done learning target entity embeddings.')
+		return target_emb
 
-    elif subject == 't_entitites':
-    	t_entity_key = {}
-    	size = len(data)
-    	print('Learning embeddings of entities associated to context.....')
-    	for i in tqdm(range(size)):
-    		for ent in data[i]['entities']:
-    			eid = ent['entity_id']
-    			if eid not in t_entity_key.keys():
-    				entity = ent['entity']
-    				if len(entity) == 0:
-    					continue
-    				tokens = tokenizer.tokenize(entity)
-    				input_ids = tokenizer.convert_tokens_to_ids(tokens)
-    				input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
-    				t_entity_key[eid] = ent_emb(input_ids, dim)
-    	t_entity_emb = torch.zeros(len(t_entity_key.keys()), dim)
-    	for el in t_entity_key:
-    		t_entity_emb[i] = t_entity_key[el]
-    		i += 1
-    	print('Done learning context associated entity embeddings.')
-    	return t_entity_key, t_entity_emb
+	elif subject == 't_entitites':
+		t_entity_key = {}
+		size = len(data)
+		print('Learning embeddings of entities associated to context.....')
+		for i in tqdm(range(size)):
+			for ent in data[i]['entities']:
+				eid = ent['entity_id']
+				if eid not in t_entity_key.keys():
+					entity = ent['entity']
+					if len(entity) == 0:
+						continue
+					tokens = tokenizer.tokenize(entity)
+					input_ids = tokenizer.convert_tokens_to_ids(tokens)
+					input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
+					t_entity_key[eid] = ent_emb(input_ids, dim)
+		t_entity_emb = torch.zeros(len(t_entity_key.keys()), dim)
+		for el in t_entity_key:
+			t_entity_emb[i] = t_entity_key[el]
+			i += 1
+		print('Done learning context associated entity embeddings.')
+		return t_entity_key, t_entity_emb
 
-    elif subject == 'aspect':
-    	pass
+	elif subject == 'aspect':
+		aspect_key = {}
+		print('Learning aspect embeddings......')
+		for i in tqdm(range(len(data))):
+		    aspect = asp[i]['true_aspect']
+		    true_aspect_id = asp[i]['true_aspect_id']
+		    tokens = tokenizer.tokenize(aspect)
+		    input_ids = tokenizer.convert_tokens_to_ids(tokens)
+		    input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
+		    if true_aspect_id not in aspect_key:
+		        aspect_key[true_aspect_id] = ent_emb(input_ids, dim = dim)
+		    for element in asp[i]['candidate_aspects']:
+		        if len(element['aspect_name']) == 0:
+		            continue
+		        if element['aspect_id'] != true_aspect_id:
+		            if element['aspect_id'] not in aspect_key:
+		                tokens = tokenizer.tokenize(element['aspect_name'])
+		                input_ids = tokenizer.convert_tokens_to_ids(tokens)
+		                input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
+		                aspect_key[element['aspect_id']] = ent_emb(input_ids, dim = dim)
+
+		asp_emb = torch.zeros(len(aspect_key.keys()), dim).to(device)
+		ind = 0
+		for el in aspect_key:
+			asp_emb[ind] = aspect_key[el]
+			ind += 1
+		print('Done learning aspect embeddings.')
+		return aspect_key, asp_emb
 
 
 
