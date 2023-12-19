@@ -3,8 +3,16 @@ from transformers import BertTokenizer
 from tqdm import tqdm
 import torch
 import pickle
+import re
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def preprocess(text):
+    text = text.lower()
+    text = re.sub(r"[^\w\s]","",text)
+    text = re.sub(r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))","",text)
+    text = re.sub("<(\"[^\"]*\"|'[^']*'|[^'\">])*>","",text)    
+    return text
 
 def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-uncased', dim = 150):
 	tokenizer = BertTokenizer.from_pretrained(pretrained)
@@ -100,6 +108,61 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 			a_entity_emb[ind] = a_entity_key[el]
 		print('Done learning aspect content associated entity embeddings.')
 		return a_entity_key, a_entity_emb
+
+def learn_text_emb(data, subject = 'context', tag = 'sentence', pretrained = 'all-MiniLM-L6-v2'):
+	text_emb = embedding.TextEmbedding(device = device)
+	if subject not in ['context', 'aspect content']:
+		print('Please select one of context or aspect content as the subject')
+		return
+	if tag not in ['paragraph', 'sentence']:
+		print('Please select one of sentence or paragraph as the tag')
+		return
+	elif subject == 'context':
+		context_emb = torch.zeros(len(data), 384).to(device)
+		print('Learning context embeddings....')
+		if tag == 'sentence':
+			for i in tqdm(range(len(data))):
+				sentence = data[i]['sentence']
+				processed_sent = preprocess(sentence)
+				output = text_emb(processed_sent)
+				context_emb[i] = output
+			print('Done learning context embeddings.')
+			return context_emb
+		elif tag == 'paragraph':
+			for i in tqdm(range(len(data))):
+				paragraph = data[i]['paragraph']
+				tokens = paragraph.split('.')
+				token_emb = torch.zeros(len(tokens), 384).to(device)
+				for ind in range(len(tokens)):
+					preprocessed_token = preprocess(tokens[ind])
+					token_output = text_emb(preprocessed_token)
+					token_emb[ind] = token_output
+				context_emb[i] = torch.mean(token_emb, dim = 0)
+			print('Done learning context embeddings.')
+			return context_emb
+	elif subject == 'aspect content':
+		content_emb = torch.zeros(len(data), 384)
+		if tag != 'paragraph':
+			print('Aspect content tag cannot be other than paragraph')
+			return
+		else:
+			print('Learning representations of aspect content....')
+			for i in range(len(data)):
+				paragraph = data[i]['content']
+				tokens = paragraph.split('.')
+				token_emb = torch.zeros(len(tokens), 384)
+				for ind in range(len(tokens)):
+					preprocessed_token = preprocess(tokens[ind])
+					token_output = text_emb(preprocessed_token)
+					token_emb[ind] = token_output
+				content_emb[i] = torch.mean(token_emb, dim = 0)
+			print('Done learning aspect content representations.')
+			return content_emb
+
+
+
+
+
 
 
 
