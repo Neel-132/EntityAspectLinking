@@ -85,8 +85,9 @@ class Model(nn.Module):
 		self.decoder = Classifier(hidden_channels_lin1,hidden_channels_lin2)
 
 	def forward(self, x_dict, y_dict, edge_index_dict, edge_label_index):
-		x_dict["target_entity"] = self.lin(torch.cat((x_dict["target_entity"],y_dict["target_entity"]),dim=1)  
+		x_dict["target_entity"] = self.lin(torch.cat((x_dict["target_entity"],y_dict["target_entity"]),dim=1))  
         z_dict = self.encoder(x_dict, edge_index_dict)
-		return self.decoder(z_dict, edge_label_index)
+		output = self.decoder(z_dict, edge_label_index)
+		return output
 
 
