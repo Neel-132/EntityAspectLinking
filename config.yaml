@@ -4,4 +4,9 @@ Main:
   graphimg: ./graph_images
   csv: ./csvfiles
   checkpoint: ./checkpoint
+DNN:
+  epochs: 60
+  lr: 0.1
+  weight_decay: 0.01
+  batch_size: 128
 
