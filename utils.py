@@ -22,12 +22,12 @@ def unzip_file(path = EAL, filename = 'train-small.jsonl.gz', encoding = 'UTF-8'
 	return data
 
 
-def decode_url(s) -> str:
+def decode_url(s):
     s = s.replace("enwiki:","")
     return urllib.parse.unquote(s)
 
 
-def clean_aspect(s) -> str:
+def clean_aspect(s):
     s = decode(s)
     pattern = re.compile(r'.*?/')
     return re.sub(pattern, '', s)
@@ -107,11 +107,10 @@ def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
     for i in range(len(data)):
         tup = ()
         ent, asp = data[i]
-        ent_emb = entity_emb[i]
-        context = context_emb[i]
+        ent_emb = torch.reshape(entity_emb[i], (1, entity_emb[i].shape[0]))
+        context = torch.reshape(context_emb[i], (1, context_emb[i].shape[0]))
         true_asp_id = asp['true_aspect_id']
-        asp_emb = asp_dict[asp_id]
-        tup += (ent_emb, context, asp_emb, 1)
+        tup += (ent_emb, context, asp_emb, torch.tensor([[1]]))
         data_key[j] = tup
         j += 1
         for item in asp['candidate_aspects']:
@@ -119,10 +118,22 @@ def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
             if len(item['aspect_name']) == 0:
                 continue
             if item['aspect_id'] != true_asp_id:
-                tup += (ent_emb, context, asp_dict[item['aspect_id']], 0)
+                tup += (ent_emb, context, asp_dict[item['aspect_id']], torch.tensor([[0]]))
                 data_key[j] = tup
                 j += 1
-    
+    dim = 0
+    for item in data_key[0]:
+        dim += item.shape[1]
+
+    dataset = torch.zeros(len(data_key), dim)
+    for i in range(len(dataset)):
+        first = data_key[i][0].to(device)
+        second = data_key[i][1].to(device)
+        third = data_key[i][2].to(device)
+        fourth = data_key[i][3].to(device)
+        dataset[i] = torch.cat((first, second, third, fourth), dim = 1)
+    print('Prepared the dataset.')
+    return dataset
 
 
 def save_file(output_filename, data, path = PTH) -> None:

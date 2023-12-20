@@ -46,4 +46,5 @@ def get_test_id(test_file, pred_class, pred_prob):
 	return
 
 pred, prob = predict('DNN_EAL_trainsmall_para.pt', 'baselinedataset_test.pkl')
-get_test_id('Test_ID.csv', pred.cpu(), prob.cpu())
+#get_test_id('Test_ID.csv', pred.cpu(), prob.cpu())
+
