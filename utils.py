@@ -101,6 +101,30 @@ def get_entasp_pair(ent_dict, asp_dict):
 	return final_data
 
 
+def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
+    data_key = {}
+    j = 0
+    for i in range(len(data)):
+        tup = ()
+        ent, asp = data[i]
+        ent_emb = entity_emb[i]
+        context = context_emb[i]
+        true_asp_id = asp['true_aspect_id']
+        asp_emb = asp_dict[asp_id]
+        tup += (ent_emb, context, asp_emb, 1)
+        data_key[j] = tup
+        j += 1
+        for item in asp['candidate_aspects']:
+            tup = ()
+            if len(item['aspect_name']) == 0:
+                continue
+            if item['aspect_id'] != true_asp_id:
+                tup += (ent_emb, context, asp_dict[item['aspect_id']], 0)
+                data_key[j] = tup
+                j += 1
+    
+
+
 def save_file(output_filename, data, path = PTH) -> None:
 	with open(f'{PTH}\\{output_filename}', 'wb') as f:
 		pickle.dump(data, f)
