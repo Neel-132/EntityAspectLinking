@@ -16,7 +16,7 @@ class TextEmbedding(nn.Module):
 
 
 class EntityEmbedding(nn.Module):
-	def __init__(self, pretrained, device = None):
+	def __init__(self, pretrained = "bert-base-uncased", device = None):
 		super(EntityEmbedding, self).__init__()
 		self.device = device
 		self.pretrained = pretrained
@@ -24,10 +24,13 @@ class EntityEmbedding(nn.Module):
 		self.bert = AutoModel.from_pretrained(self.pretrained, config = self.pretrained)
 		self.bert.to(device)
 
-	def forward(self, input_ids, dim = 100):
+	def forward(self, input_ids, dim = 150):
 		with torch.no_grad():
 			output = self.bert(input_ids)
 			return output[0][:, 0, :dim]
+
+
+
 
 
 
