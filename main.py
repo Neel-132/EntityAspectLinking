@@ -20,3 +20,14 @@ def parse_args():
 		help = 'Graph Neural Network model choices: GCN, GraphSAGE, GAT')
 	args = parser.parse_args()
 	return args
+
+
+if __name__ == '__main__':
+	config = utils.load_config('config.yaml')
+	PKL = config['Main']['pickle']
+	RUN = config['Main']['run']
+	CSV = config['Main']['csv']
+	CKP = config['Main']['checkpoint']
+
+	args = parse_args()
+	

@@ -5,6 +5,7 @@ import json
 import pickle
 import urllib.parse
 import re
+import yaml
 
 EAL = r'D:\Entity Aspect Linking\data\entity-aspect-linking-2020\collection'
 PTH = r'.\picklefiles'
@@ -149,6 +150,11 @@ def read_file(input_filename, path = PTH) -> dict[int]:
     print('File read successfully')
     f.close()
     return data
+
+def load_config(config_name):
+    with open(config_name) as file:
+        config = yaml.safe_load(file)
+    return config
 
 
 

@@ -97,7 +97,9 @@ class Main():
 				neg_count += 1
 		pos_count = len(target) - neg_count
 		scaling_factor = round(neg_count / pos_count, 2)
-		return torch.tensor(features, dtype = 'float32'), torch.tensor(target), scaling_factor
+		test_dataset = Dataset(torch.tensor(features, dtype = 'float32'), torch.tensor(target))
+		test_loader = DataLoader(test_dataset, batch_size = batch_size)
+		return test_loader, scaling_factor
 
 	def evaluate(self, dataloader, model, loss_fn):
 		runningloss = 0
@@ -176,19 +178,23 @@ class Main():
 		return
 
 	def predict(self, data, root_csv, CSV = CSV):
-		x, y, scaling_factor = prepare_testdataset(data)
+		test_loader, scaling_factor = prepare_testdataset(data)
 		pos_weight = torch.tensor(scaling_factor)
 		self.dnn.eval()
+		y_pred_tot = []
+		y_prob_tot = []
 		with torch.no_grad():
-			x = x.to(device)
-			y = y.to(device)
-			y_pred = self.dnn(x)
-			self.loss_fn.pos_weight = pos_weight
-			test_loss = loss_fn(y, y_pred)
-			y_pred_prob = torch.sigmoid(y_pred)
-			y_pred_class = [1 if el > 0.5 else 0 for el in y_pred_prob]
-			y_pred_class = torch.tensor(y_pred_class).to(device)
-			f1_sc = multiclass_f1_score(y_pred_class, y, num_classes = 2)
+			for batch in test_loader:
+				x, y = batch
+				x = x.to(device)
+				y = y.to(device)
+				y_pred = self.dnn(x)
+				self.loss_fn.pos_weight = pos_weight
+				test_loss = loss_fn(y, y_pred)
+				y_pred_prob = torch.sigmoid(y_pred)
+				y_pred_class = [1 if el > 0.5 else 0 for el in y_pred_prob]
+				y_pred_class = torch.tensor(y_pred_class).to(device)
+				f1_sc = multiclass_f1_score(y_pred_class, y, num_classes = 2)
 		print('Test loss is %0.6f' % test_loss)
 		print('Test F1 score is %0.6f' % f1_sc)
 		get_test_id(root_csv, pred_class, pred_prob)
