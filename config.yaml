@@ -1,9 +1,10 @@
 Main:
-  pickle: ./picklefiles
-  run: ./runfiles
-  graphimg: ./graph_images
-  csv: ./csvfiles
-  checkpoint: ./checkpoint
+  pickle: .\picklefiles
+  run: .\runfiles
+  graphimg: .\graph_images
+  csv: .\csvfiles
+  checkpoint: .\checkpoint
+  data: D:\Entity Aspect Linking\data\entity-aspect-linking-2020\collection
 DNN:
   Train:
     epochs: 60

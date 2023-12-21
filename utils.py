@@ -8,19 +8,20 @@ import re
 import yaml
 
 EAL = r'D:\Entity Aspect Linking\data\entity-aspect-linking-2020\collection'
-PTH = r'.\picklefiles'
+PKL = r'.\picklefiles'
 
 def unzip_file(path = EAL, filename = 'train-small.jsonl.gz', encoding = 'UTF-8'):
-	data = {}
-	i = 0
-	with gzip.open(f'{path}\\{filename}', 'rt', encoding = encoding) as zipfile:
-		for line in zipfile:
-			my_object = json.loads(line)
-			data[str(i)] = my_object
-			i = i + 1
-		print('File read successfully')
-	zipfile.close()
-	return data
+    data = {}
+    i = 0
+    print(f'Unziping {filename}...')
+    with gzip.open(f'{path}\\{filename}', 'rt', encoding = encoding) as zipfile:
+        for line in zipfile:
+            my_object = json.loads(line)
+            data[str(i)] = my_object
+            i = i + 1
+        print(f'{filename} unziped successfully')
+    zipfile.close()
+    return data
 
 
 def decode_url(s):
@@ -29,7 +30,7 @@ def decode_url(s):
 
 
 def clean_aspect(s):
-    s = decode(s)
+    s = decode_url(s)
     pattern = re.compile(r'.*?/')
     return re.sub(pattern, '', s)
 
@@ -43,9 +44,9 @@ def make_entdict(data, tag = 'sentence', n = 10, israndom = False, ind = []):
     i = 0
     for i in it:
         temp = {}
-        ent = data[str(i+1)]
+        ent = data[str(i)]
         temp["id"] = ent["id"]
-        temp["target_entity"] = decode(ent['context']['target_entity'])
+        temp["target_entity"] = decode_url(ent['context']['target_entity'])
         temp[tag] = ent['context'][tag]['content']
         temp["entities"] = []                        
         k = 0
@@ -61,7 +62,7 @@ def make_entdict(data, tag = 'sentence', n = 10, israndom = False, ind = []):
     return ent_data
 
 
-def get_aspectdict(data, n = 10, israndom = False, ind = []):
+def make_aspectdict(data, n = 10, israndom = False, ind = []):
     aspects = []
     k = 0
     if israndom == True:
@@ -70,7 +71,7 @@ def get_aspectdict(data, n = 10, israndom = False, ind = []):
         it = range(n)
     for i in it:
         temp = {}
-        ent = data[str(i + 1)]
+        ent = data[str(i)]
         temp['true_aspect_id'] = ent['true_aspect']
         temp['true_aspect'] = clean_aspect(ent['true_aspect'])
         candasp = []
@@ -97,9 +98,10 @@ def get_aspectdict(data, n = 10, israndom = False, ind = []):
     return aspects
 
 def get_entasp_pair(ent_dict, asp_dict):
-	assert len(ent_dict) != len(asp_dict), 'Entity dict and Aspect dict must have the same length.'
-	final_data = [(ent_dict[i], asp_dict[i]) for i in range(len(ent_dict))]
-	return final_data
+    assert len(ent_dict) == len(asp_dict), 'Entity dict and Aspect dict must have the same length.'
+    final_data = [(ent_dict[i], asp_dict[i]) for i in range(len(ent_dict))]
+    print("Data preprocessed successfully")
+    return final_data
 
 
 def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
@@ -137,17 +139,17 @@ def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
     return dataset
 
 
-def save_file(output_filename, data, path = PTH) -> None:
-	with open(f'{PTH}\\{output_filename}', 'wb') as f:
+def save_file(output_filename, data, PKL = PKL) -> None:
+	with open(f'{PKL}\\{output_filename}', 'wb') as f:
 		pickle.dump(data, f)
-	print('File dumped successfully!')
+	print(f'{output_filename} dumped successfully!')
 	f.close()
 	return
 
-def read_file(input_filename, path = PTH) -> dict[int]:
-    with open(f'{PTH}\\{input_filename}', 'rb') as f:
+def read_file(input_filename, PKL = PKL) -> dict[int]:
+    with open(f'{PKL}\\{input_filename}', 'rb') as f:
         data = pickle.load(f)
-    print('File read successfully')
+    print(f'{input_filename} read successfully')
     f.close()
     return data
 
