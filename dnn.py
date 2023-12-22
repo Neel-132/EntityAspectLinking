@@ -86,7 +86,7 @@ class Main():
 			data_loader = DataLoader(dataset, batch_size = batch_size, shuffle = True)
 			return data_loader
 
-	def prepare_testdataset(self, data):
+	def prepare_testdataset(self, data, batch_size = 1):
 		features = data[ :, : -1]
 		target = data[:, -1]
 		sc = StandardScaler()
@@ -97,7 +97,9 @@ class Main():
 				neg_count += 1
 		pos_count = len(target) - neg_count
 		scaling_factor = round(neg_count / pos_count, 2)
-		return torch.tensor(features, dtype = 'float32'), torch.tensor(target), scaling_factor
+		test_dataset = Dataset(torch.tensor(features, dtype = 'float32'), torch.tensor(target))
+		test_loader = DataLoader(test_dataset, batch_size = batch_size)
+		return test_loader, scaling_factor
 
 	def evaluate(self, dataloader, model, loss_fn):
 		runningloss = 0
@@ -175,23 +177,35 @@ class Main():
 		print('Predictions saved successfully')
 		return
 
-	def predict(self, data, root_csv, CSV = CSV):
-		x, y, scaling_factor = prepare_testdataset(data)
+	def predict(self, test_loader, root_csv, CSV = CSV, scaling_factor = 1):
 		pos_weight = torch.tensor(scaling_factor)
 		self.dnn.eval()
+		pred_class_tot = []
+		pred_prob_tot = []
+		tot_f1_sc = 0
+		total_loss = 0
 		with torch.no_grad():
-			x = x.to(device)
-			y = y.to(device)
-			y_pred = self.dnn(x)
-			self.loss_fn.pos_weight = pos_weight
-			test_loss = loss_fn(y, y_pred)
-			y_pred_prob = torch.sigmoid(y_pred)
-			y_pred_class = [1 if el > 0.5 else 0 for el in y_pred_prob]
-			y_pred_class = torch.tensor(y_pred_class).to(device)
-			f1_sc = multiclass_f1_score(y_pred_class, y, num_classes = 2)
-		print('Test loss is %0.6f' % test_loss)
-		print('Test F1 score is %0.6f' % f1_sc)
-		get_test_id(root_csv, pred_class, pred_prob)
+			for batch in test_loader:
+				x, y = batch
+				x = x.to(device)
+				y = y.to(device)
+				y_pred = self.dnn(x)
+				self.loss_fn.pos_weight = pos_weight
+				test_loss = loss_fn(y, y_pred)
+				y_pred_prob = torch.sigmoid(y_pred)
+				y_pred_prob = torch.squeeze(y_pred_prob)
+				pred_prob_tot = pred_prob_tot.extend(y_pred_prob.cpu().tolist())
+				y_pred_class = [1 if el > 0.5 else 0 for el in y_pred_prob]
+				pred_class_tot = pred_class_tot.extend(y_pred_class)
+				y_pred_class = torch.tensor(y_pred_class).to(device)
+				f1_sc = multiclass_f1_score(y_pred_class, y, num_classes = 2)
+				tot_f1_sc += f1_sc
+				total_loss += test_loss
+		avg_loss = total_loss / len(test_loader)
+		avg_f1_sc = tot_f1_sc / len(test_loader)
+		print('Test loss is %0.6f' % avg_loss)
+		print('Test F1 score is %0.6f' % avg_f1_sc)
+		get_test_id(root_csv, pred_class_tot, pred_prob_tot)
 
 
 def run_dnn(device, CKP, train = True, train_data = None, val_data = None, test_data = None, model_file = None, epochs = 5, lr = 0.001, weight_decay = 1e-4, CSV = None, root_csv = None, batch_size = None):
@@ -201,6 +215,7 @@ def run_dnn(device, CKP, train = True, train_data = None, val_data = None, test_
 			print('Please provide a root csv file')
 			exit()
 		mainclass = Main(CKP = CKP, device = device, infer = True, model_file = model_file)
+		test_loader, scaling_factor = prepare_testdataset(data, batch_size = batch_size)
 		mainclass.predict(test_data, root_csv, CSV = CSV)
 	else:
 		mainclass = Main(CKP = CKP, device = device)

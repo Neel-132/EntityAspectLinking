@@ -1,12 +1,19 @@
 Main:
-  pickle: ./picklefiles
-  run: ./runfiles
-  graphimg: ./graph_images
-  csv: ./csvfiles
-  checkpoint: ./checkpoint
+  pickle: .\picklefiles
+  run: .\runfiles
+  graphimg: .\graph_images
+  csv: .\csvfiles
+  checkpoint: .\checkpoint
+  data: D:\Entity Aspect Linking\data\entity-aspect-linking-2020\collection
 DNN:
-  epochs: 60
-  lr: 0.1
-  weight_decay: 0.01
-  batch_size: 128
+  Train:
+    epochs: 60
+    lr: 0.1
+    weight_decay: 0.01
+    batch_size: 128
+
+  Test:
+    batch_size: 1
+
+
 
