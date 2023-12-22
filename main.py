@@ -218,8 +218,8 @@ if __name__ == '__main__':
 		utils.save_file(f'{val}_{content}_{pretrainedmodel}_t_entitydict.pkl', val_t_entity_key, PKL = PKL)
 
 	else:
-		t_entity_emb = utils.read_file(f'{val}_{content}_{pretrainedmodel}_t_entities_emb.pkl', PKL = PKL)
-		t_entity_key = utils.read_file(f'{val}_{content}_{pretrainedmodel}_t_entitydict.pkl', PKL = PKL)
+		val_t_entity_emb = utils.read_file(f'{val}_{content}_{pretrainedmodel}_t_entities_emb.pkl', PKL = PKL)
+		val_t_entity_key = utils.read_file(f'{val}_{content}_{pretrainedmodel}_t_entitydict.pkl', PKL = PKL)
 
 	val_a_entities_path = f'{PKL}\\{val}_{content}_{pretrainedmodel}_a_entities_emb.pkl'
 	path = val_a_entities_path
@@ -237,15 +237,103 @@ if __name__ == '__main__':
 		val_a_entity_emb = utils.read_file(f'{val}_{content}_{pretrainedmodel}_a_entities_emb.pkl', PKL = PKL)
 		val_a_entity_key = utils.read_file(f'{val}_{content}_{pretrainedmodel}_a_entitydict.pkl', PKL = PKL)
 
+
+	test_entembpath = f'{PKL}\\{test}_{content}_{pretrainedmodel}_targetentemb.pkl'
+	path = test_entembpath
+
+	test_ent = [item[0] for item in test_eal]
+	test_asp = [item[1] for item in test_eal]
+
+	if not os.path.isfile(path):
+		test_target_ent_emb = learn_reps.learn_word_emb(test_ent, pretrained = pretrained)
+		utils.save_file(f'{test}_{content}_{pretrainedmodel}_targetentemb.pkl', test_target_ent_emb.cpu(), PKL = PKL)
+
+	else:
+		test_target_ent_emb = utils.read_file(f'{test}_{content}_{pretrainedmodel}_targetentemb.pkl', PKL = PKL)
+
+	test_aspembpath = f'{PKL}\\{test}_{content}_{pretrainedmodel}_aspemb.pkl'
+	path = test_aspembpath
+
+	if not os.path.isfile(path):
+		test_asp_key, test_asp_emb = learn_reps.learn_word_emb(test_asp, pretrained = pretrained, subject = 'aspect')
+		utils.save_file(f'{test}_{content}_{pretrainedmodel}_aspemb.pkl', test_asp_emb.cpu(), PKL = PKL)
+		for key in test_asp_key:
+			test_asp_key[key] = test_asp_key[key].cpu()
+
+		utils.save_file(f'{test}_{content}_{pretrainedmodel}_aspdict.pkl', test_asp_key, PKL = PKL)
+	else:
+		test_asp_emb = utils.read_file(f'{test}_{content}_{pretrainedmodel}_aspemb.pkl', PKL = PKL)
+		test_asp_key = utils.read_file(f'{test}_{content}_{pretrainedmodel}_aspdict.pkl', PKL = PKL)
+
+	test_context_path = f'{PKL}\\{test}_{content}_contextemb.pkl'
+	path = test_context_path
+
+	if not os.path.isfile(path):
+		test_context_emb = learn_reps.learn_text_emb(test_ent, tag = content)
+		utils.save_file(f'{test}_{content}_contextemb.pkl', test_context_emb.cpu(), PKL = PKL)
+	else:
+		test_context_emb = utils.read_file(f'{test}_{content}_contextemb.pkl', PKL = PKL)
+
+	test_t_entities_path = f'{PKL}\\{test}_{content}_{pretrainedmodel}_t_entities_emb.pkl'
+	path = test_t_entities_path
+
+	if not os.path.isfile(path):
+		test_t_entity_key, test_t_entity_emb = learn_reps.learn_word_emb(test_ent, pretrained = pretrained, subject = 't_entitites')
+		utils.save_file(f'{test}_{content}_{pretrainedmodel}_t_entities_emb.pkl', test_t_entity_emb.cpu(), PKL = PKL)
+		
+		for key in test_t_entity_key:
+			test_t_entity_key[key] = test_t_entity_key[key].cpu()
+
+		utils.save_file(f'{test}_{content}_{pretrainedmodel}_t_entitydict.pkl', test_t_entity_key, PKL = PKL)
+
+	else:
+		test_t_entity_emb = utils.read_file(f'{test}_{content}_{pretrainedmodel}_t_entities_emb.pkl', PKL = PKL)
+		test_t_entity_key = utils.read_file(f'{test}_{content}_{pretrainedmodel}_t_entitydict.pkl', PKL = PKL)
+
+	test_a_entities_path = f'{PKL}\\{test}_{content}_{pretrainedmodel}_a_entities_emb.pkl'
+	path = test_a_entities_path
+
+	if not os.path.isfile(path):
+		test_a_entity_key, test_a_entity_emb = learn_reps.learn_word_emb(test_asp, pretrained = pretrained, subject = 'a_entities')
+		utils.save_file(f'{test}_{content}_{pretrainedmodel}_a_entities_emb.pkl',test_a_entity_emb.cpu(), PKL = PKL)
+		
+		for key in test_a_entity_key:
+			test_a_entity_key[key] = test_a_entity_key[key].cpu()
+
+		utils.save_file(f'{test}_{content}_{pretrainedmodel}_a_entitydict.pkl', test_a_entity_key, PKL = PKL)
+
+	else:
+		test_a_entity_emb = utils.read_file(f'{test}_{content}_{pretrainedmodel}_a_entities_emb.pkl', PKL = PKL)
+		test_a_entity_key = utils.read_file(f'{test}_{content}_{pretrainedmodel}_a_entitydict.pkl', PKL = PKL)
+
 	if args.baseline:
 		train_baselinedataset_path = f'{PKL}\\{train}_{content}_baselinedataset.pkl'
 		path = train_baselinedataset_path
 
 		if not os.path.isfile(path):
-			train_baselinedataset = utils.get_baselinedataset(train_eal, target_ent_emb, context_emb, asp_key)
+			train_baselinedataset = utils.get_baselinedataset(train_eal, train_target_ent_emb, train_context_emb, train_asp_key)
 			utils.save_file(f'{train}_{content}_baselinedataset.pkl', train_baselinedataset.cpu(), PKL = PKL)
 		else:
 			train_baselinedataset = utils.read_file(f'{train}_{content}_baselinedataset.pkl', PKL = PKL)
+
+		val_baselinedataset_path = f'{PKL}\\{val}_{content}_baselinedataset.pkl'
+		path = val_baselinedataset_path
+
+		if not os.path.isfile(path):
+			val_baselinedataset = utils.get_baselinedataset(val_eal, val_target_ent_emb, val_context_emb, val_asp_key)
+			utils.save_file(f'{val}_{content}_baselinedataset.pkl', val_baselinedataset.cpu(), PKL = PKL)
+		else:
+			val_baselinedataset = utils.read_file(f'{val}_{content}_baselinedataset.pkl', PKL = PKL)
+
+
+		test_baselinedataset_path = f'{PKL}\\{test}_{content}_baselinedataset.pkl'
+		path = test_baselinedataset_path
+
+		if not os.path.isfile(path):
+			test_baselinedataset = utils.get_baselinedataset(test_eal, test_target_ent_emb, test_context_emb, test_asp_key)
+			utils.save_file(f'{test}_{content}_baselinedataset.pkl', test_baselinedataset.cpu(), PKL = PKL)
+		else:
+			test_baselinedataset = utils.read_file(f'{test}_{content}_baselinedataset.pkl', PKL = PKL)
 
 
 
