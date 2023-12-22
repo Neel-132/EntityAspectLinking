@@ -6,9 +6,12 @@ import pickle
 import urllib.parse
 import re
 import yaml
+import torch
 
 EAL = r'D:\Entity Aspect Linking\data\entity-aspect-linking-2020\collection'
 PKL = r'.\picklefiles'
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def unzip_file(path = EAL, filename = 'train-small.jsonl.gz', encoding = 'UTF-8'):
     data = {}
@@ -107,12 +110,14 @@ def get_entasp_pair(ent_dict, asp_dict):
 def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
     data_key = {}
     j = 0
+    print('Preparing dataset...')
     for i in range(len(data)):
         tup = ()
         ent, asp = data[i]
         ent_emb = torch.reshape(entity_emb[i], (1, entity_emb[i].shape[0]))
         context = torch.reshape(context_emb[i], (1, context_emb[i].shape[0]))
         true_asp_id = asp['true_aspect_id']
+        asp_emb = aspect_dict[true_asp_id]
         tup += (ent_emb, context, asp_emb, torch.tensor([[1]]))
         data_key[j] = tup
         j += 1
@@ -121,7 +126,7 @@ def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
             if len(item['aspect_name']) == 0:
                 continue
             if item['aspect_id'] != true_asp_id:
-                tup += (ent_emb, context, asp_dict[item['aspect_id']], torch.tensor([[0]]))
+                tup += (ent_emb, context, aspect_dict[item['aspect_id']], torch.tensor([[0]]))
                 data_key[j] = tup
                 j += 1
     dim = 0

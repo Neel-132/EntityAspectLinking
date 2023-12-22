@@ -33,13 +33,14 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 			tokens = tokenizer.tokenize(entity)
 			input_ids = tokenizer.convert_tokens_to_ids(tokens)
 			input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
-			target_emb[i] = ent_emb(input_ids, dim = 150)
+			target_ent_emb[i] = ent_emb(input_ids, dim = 150)
 		print('Done learning target entity embeddings.')
-		return target_emb
+		return target_ent_emb
 
 	elif subject == 't_entitites':
 		t_entity_key = {}
 		size = len(data)
+		ind = 0
 		print('Learning embeddings of entities associated to context.....')
 		for i in tqdm(range(size)):
 			for ent in data[i]['entities']:
@@ -54,8 +55,8 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 					t_entity_key[eid] = ent_emb(input_ids, dim)
 		t_entity_emb = torch.zeros(len(t_entity_key.keys()), dim)
 		for el in t_entity_key:
-			t_entity_emb[i] = t_entity_key[el]
-			i += 1
+			t_entity_emb[ind] = t_entity_key[el]
+			ind += 1
 		print('Done learning context associated entity embeddings.')
 		return t_entity_key, t_entity_emb
 
