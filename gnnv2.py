@@ -9,7 +9,7 @@ from torch.nn import BCEWithLogitsLoss
 # Check Code
 
 class GraphSage(nn.Module):
-	def __init__(self,hidden_channel = 256, out_channel= 128, activation="relu"):
+	def __init__(self, activation, hidden_channel = 256, out_channel= 128):
 		super().__init__()
 		self.activation = activation
 		self.conv1 = SAGEConv((-1, -1), hidden_channels)
@@ -25,7 +25,7 @@ class GraphSage(nn.Module):
 class GraphAttention(nn.Module):
 	""" Class to implement Graph Attention Module """
 
-	def __init__(self,hidden_channel = 256 ,out_channel =128 ,activation = "relu",heads = 5):
+	def __init__(self, activation, hidden_channel = 256 , out_channel =128, heads = 5):
 		super().__init__()
 		self.activation = activation
 		self.heads = heads
@@ -41,7 +41,7 @@ class GraphAttention(nn.Module):
 
 class GraphConvolution(nn.Module):
 	""" Class to implement Graph Convolution Module """
-	def __init__(self, hidden_channel = 256, out_channel = 128, activation = "relu"):
+	def __init__(self, activation, hidden_channel = 256, out_channel = 128):
 		super().__init__()
 		
 		self.activation = activation
@@ -71,15 +71,17 @@ class Classifier(nn.Module):
         return z.view(-1)
 
 class Model(nn.Module):
-	def __init__(self, graph, inp_channel, activation = "relu", aggregation = "mean" ,encoder_type = "GAT"):
+	def __init__(self, graph, inp_channel, output_channel = 150, activation = "relu", aggregation = "mean" ,encoder_type = "GAT"):
 		super().__init__()
+		if activation not in ['relu', 'leaky_relu']:
+			print('Please provide appropriate activation function.')
 		if activation == "leaky_relu":
 			activation = nn.LeakyReLU()
-		else:
+		elif activation == 'relu':
 			activation = nn.ReLU()
 		self.activation = activation
 
-		self.lin = nn.Linear(inp_channel,150)
+		self.lin = nn.Linear(inp_channel, output_channel)
 		self.encoder_type = encoder_type
 		if self.encoder_type == "GAT":
 			self.encoder = GraphAttention(activation = self.activation)

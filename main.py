@@ -3,6 +3,7 @@ import os
 from argparse import ArgumentParser
 import learn_reps
 import torch
+import dnn
 
 def parse_args():
 	parser = ArgumentParser(description = 'Process the command line arguments')
@@ -15,7 +16,8 @@ def parse_args():
 		help = 'Validation dataset choice : validate')
 	parser.add_argument('-tsd', '--testingdataset', type = str, choices = ['test', 'nanni-test', 'nanni-201'], default = 'test', 
 		help = 'Testing dataset choices: test, nanni-test, nanni-201')
-	parser.add_argument('-p', '--pretrainedmodel', type = str, choices = ['bert-base', 'bert-large', 'roberta'])
+	parser.add_argument('-p', '--pretrainedmodel', type = str, choices = ['bert-base', 'bert-large', 'roberta'], default = 'bert-base',
+		help  = 'Pretrained model choices: BERT base, BERT large, RoBERTa')
 	parser.add_argument('-b', '--baseline', action = 'store_true', help = 'Train the baseline models')
 	parser.add_argument('-g', '--gnn', action = 'store_true', help = 'Train the gnn models')
 	parser.add_argument('-m', '--baselinemodel', choices = ['xgboost', 'svm', 'dnn'],
@@ -33,8 +35,16 @@ if __name__ == '__main__':
 	CSV = config['Main']['csv']
 	CKP = config['Main']['checkpoint']
 	EAL = config['Main']['data']
-	device = ['cuda' if torch.cuda.is_available() else 'cpu']
-	
+	epochs = config['DNN']['Train']['epochs']
+	lr = config['DNN']['Train']['lr']
+	weight_decay = config['DNN']['Train']['weight_decay']
+	train_batch_size = config['DNN']['Train']['batch_size']
+	train_ratio = config['DNN']['Train']['train_ratio']
+	val_ratio = config['DNN']['Train']['val_ratio']
+	test_batch_size = config['DNN']['Test']['batch_size']
+
+
+	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 	args = parse_args()
 
@@ -50,6 +60,8 @@ if __name__ == '__main__':
 	if args.pretrainedmodel not in ['bert-base', 'bert-large', 'roberta']:
 		print('Please provide correct pretrained model type')
 		exit()
+	if args.baselinemodel not in ['dnn', 'xgboost', 'svm']:
+		print('Please provide correct baseline model')
 
 	train = args.trainingdataset
 	val = args.validationdataset
@@ -58,6 +70,7 @@ if __name__ == '__main__':
 	train_path = f'{PKL}\\{train}_{content}.pkl'
 	path = train_path
 	pretrainedmodel = args.pretrainedmodel
+	baselinemodel = args.baselinemodel
 	if pretrainedmodel == 'roberta':
 		pass 
 	else:
@@ -330,10 +343,33 @@ if __name__ == '__main__':
 		path = test_baselinedataset_path
 
 		if not os.path.isfile(path):
-			test_baselinedataset = utils.get_baselinedataset(test_eal, test_target_ent_emb, test_context_emb, test_asp_key)
+			test_baselinedataset = utils.get_baselinedataset(test_eal, test_target_ent_emb, test_context_emb, test_asp_key, train = False, tag = test)
 			utils.save_file(f'{test}_{content}_baselinedataset.pkl', test_baselinedataset.cpu(), PKL = PKL)
 		else:
 			test_baselinedataset = utils.read_file(f'{test}_{content}_baselinedataset.pkl', PKL = PKL)
+
+		dnn_model_file = f'{CKP}\\{train}_{content}_dnn.pt'
+		path = dnn_model_file
+
+		if not os.path.isfile(path):
+			dnn.run_dnn(device = device, train_data = train_baselinedataset, val_data = val_baselinedataset, epochs = epochs, lr = lr, batch_size = train_batch_size, 
+				dataset_type = train, content = content, CKP = CKP, train_ratio = train_ratio, val_ratio = val_ratio)
+		else:
+			prediction_path = f'{CSV}\\{test}_{content}_{baselinemodel}_pred.csv'
+			path = prediction_path
+			if not os.path.isfile(path):
+				root_csv = f'{test}.csv'
+				dnn.run_dnn(device = device, test_data = test_baselinedataset, root_csv = root_csv, CSV = CSV, 
+					batch_size = test_batch_size, CKP = CKP, content = content, dataset_type = test, train = False, model_file = f'{train}_{content}_dnn')
+
+			utils.get_run_file(f'{test}_{content}_dnn_pred.csv')
+			
+
+
+
+
+
+
 
 
 

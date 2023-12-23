@@ -7,10 +7,12 @@ import urllib.parse
 import re
 import yaml
 import torch
+import pandas as pd
 
 EAL = r'D:\Entity Aspect Linking\data\entity-aspect-linking-2020\collection'
 PKL = r'.\picklefiles'
-
+CSV = r'.\csvfiles'
+RUN = r'.\runfiles'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def unzip_file(path = EAL, filename = 'train-small.jsonl.gz', encoding = 'UTF-8'):
@@ -107,10 +109,14 @@ def get_entasp_pair(ent_dict, asp_dict):
     return final_data
 
 
-def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
+def get_baselinedataset(data, entity_emb, context_emb, aspect_dict, CSV = CSV, train = True, tag = None):
     data_key = {}
     j = 0
-    print('Preparing dataset...')
+    test_file = []
+    if not train:
+        print('Preparing testing dataset and test file...')
+    else:
+        print('Preparing dataset...')
     for i in range(len(data)):
         tup = ()
         ent, asp = data[i]
@@ -119,6 +125,8 @@ def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
         true_asp_id = asp['true_aspect_id']
         asp_emb = aspect_dict[true_asp_id]
         tup += (ent_emb, context, asp_emb, torch.tensor([[1]]))
+        if not train:
+            test_file.append((ent['id'], asp['true_aspect_id'], 1))
         data_key[j] = tup
         j += 1
         for item in asp['candidate_aspects']:
@@ -127,6 +135,8 @@ def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
                 continue
             if item['aspect_id'] != true_asp_id:
                 tup += (ent_emb, context, aspect_dict[item['aspect_id']], torch.tensor([[0]]))
+                if not train:
+                    test_file.append((ent['id'], item['aspect_id'], 0))
                 data_key[j] = tup
                 j += 1
     dim = 0
@@ -140,8 +150,42 @@ def get_baselinedataset(data, entity_emb, context_emb, aspect_dict):
         third = data_key[i][2].to(device)
         fourth = data_key[i][3].to(device)
         dataset[i] = torch.cat((first, second, third, fourth), dim = 1)
-    print('Prepared the dataset.')
+    if not train:
+        print('Prepared the testing dataset.')
+        print('Prepared the test file.')
+        test_id_df = pd.DataFrame(test_file, columns = ['Entity ID', 'Aspect ID', 'IsTrue'])
+        dup = test_id_df.duplicated(subset = ['Entity ID', 'Aspect ID']).tolist()
+        dup_ind = []
+        for el in range(len(dup)):
+            if dup[el] == True:
+                dup_ind.append(el)
+                print(el)
+        test_id_df.to_csv(f'{CSV}\\{tag}.csv', index = False)
+        
+    else:
+        print('Prepared the dataset')
+
     return dataset
+
+
+def get_run_file(prediction_file, tag = 'test', content = 'sentence', mode = 'dnn', CSV = CSV, RUN = RUN):
+    df = pd.read_csv(f'{CSV}\\{tag}_{content}_{mode}_pred.csv')
+    print('Preparing run file....')
+    df['trec_format_1'] = [0] * df.shape[0]
+    df['comment'] = ['run'] * df.shape[0]
+    del df['IsTrue']
+    cols = df.columns.tolist()
+    x = 'trec_format_1'
+    cols.remove(x)
+    cols = [cols[0]] + [x] + cols[1 : ]
+    df = df[cols]
+    for el in df.duplicated(subset = ['Entity ID', 'trec_format_1', 'Aspect ID', 'comment']).tolist():
+        if el == True:
+            print(el)
+            exit()
+    df.to_csv(f'{RUN}\\{tag}_{content}_{mode}.run', sep = ' ',header = False, index = False)
+    print(f'{tag} Run file for {mode} saved successfully')
+
 
 
 def save_file(output_filename, data, PKL = PKL) -> None:
