@@ -76,6 +76,8 @@ if __name__ == '__main__':
 	else:
 		pretrained = pretrainedmodel+'-uncased'
 
+	# Preparing the (entity,aspect) tuples
+
 	if not os.path.isfile(path):
 			train_data = utils.unzip_file(path = EAL, filename = f'{train}.jsonl.gz')
 			tlngth = len(train_data.keys())
@@ -111,6 +113,8 @@ if __name__ == '__main__':
 		utils.save_file(f'{test}_{content}.pkl', test_eal, PKL = PKL)
 	else:
 		test_eal = utils.read_file(f'{test}_{content}.pkl', PKL = PKL)
+
+	# Learning representations using pretrained BERT/RoBERTa
 
 	train_entembpath = f'{PKL}\\{train}_{content}_{pretrainedmodel}_targetentemb.pkl'
 	path = train_entembpath
@@ -318,6 +322,8 @@ if __name__ == '__main__':
 	else:
 		test_a_entity_emb = utils.read_file(f'{test}_{content}_{pretrainedmodel}_a_entities_emb.pkl', PKL = PKL)
 		test_a_entity_key = utils.read_file(f'{test}_{content}_{pretrainedmodel}_a_entitydict.pkl', PKL = PKL)
+
+	# Training the baseline models
 
 	if args.baseline:
 		train_baselinedataset_path = f'{PKL}\\{train}_{content}_baselinedataset.pkl'
