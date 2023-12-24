@@ -368,7 +368,7 @@ if __name__ == '__main__':
 				dnn.run_dnn(device = device, test_data = test_baselinedataset, root_csv = root_csv, CSV = CSV, 
 					batch_size = test_batch_size, CKP = CKP, content = content, dataset_type = test, train = False, model_file = f'{train}_{content}_dnn')
 
-			utils.get_run_file(f'{test}_{content}_dnn_pred.csv')
+			utils.get_run_file(f'{test}_{content}_dnn_pred.csv', content = content, tag = test)
 			
 
 

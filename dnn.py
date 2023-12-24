@@ -207,7 +207,7 @@ class Main():
 		print('Predictions saved successfully')
 		return
 
-	def predict(self, CSV, test_loader, root_csv, content = 'sentence', tag = 'test', scaling_factor = 1):
+	def predict(self, CSV, test_loader, root_csv, content, tag, scaling_factor = 1):
 		pos_weight = torch.tensor(scaling_factor)
 		self.dnn.eval()
 		pred_class_tot = []
@@ -238,7 +238,7 @@ class Main():
 		avg_f1_sc = tot_f1_sc / len(test_loader)
 		print('Test loss is %0.6f' % avg_loss)
 		print('Test F1 score is %0.6f' % avg_f1_sc)
-		self.get_test_id(root_csv, pred_class_tot, pred_prob_tot, CSV = CSV)
+		self.get_test_id(root_csv, pred_class_tot, pred_prob_tot, content = content, tag = tag, CSV = CSV)
 
 
 def run_dnn(device, CKP, dataset_type = 'train-small', content = 'sentence', train_ratio = None, val_ratio = None, train = True, train_data = None, 
@@ -253,7 +253,7 @@ def run_dnn(device, CKP, dataset_type = 'train-small', content = 'sentence', tra
 			print('Please provide test data')
 			exit()
 		test_loader, scaling_factor = mainclass.prepare_testdataset(data = test_data, batch_size = batch_size)
-		mainclass.predict(CSV, test_loader, root_csv, model_file, scaling_factor = scaling_factor)
+		mainclass.predict(CSV, test_loader, root_csv, content = content, tag = dataset_type, scaling_factor = scaling_factor)
 	else:
 		mainclass = Main(CKP = CKP, device = device)
 		#train_loader, scaling_factor = mainclass.prepare_traindataset(train_data, batch_size = batch_size)
