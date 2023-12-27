@@ -53,12 +53,33 @@ class EALNetwork(nn.Module):
 		pred = self.model(x)
 		return pred
 
+class EALSubNetwork(nn.Module):
+	def __init__(self, inp, device, hidden = 100, output = 300):
+		super(EALSubNetwork, self).__init__()
+		self.device = device
+		self.lin = nn.Linear(inp, hidden)
+		self.lin.to(self.device)
+		self.output = nn.Linear(output, 1)
+		self.output.to(self.device)
+
+	def forward(self, entity, aspect, context):
+		red_ent = self.lin(entity)
+		red_asp = self.lin(aspect)
+		red_contxt = self.lin(context)
+		#print(red_ent.shape, red_asp.shape, red_contxt.shape)
+		net = torch.cat((red_ent, red_contxt, red_asp), dim = 1)
+		#print(net.shape)
+		pred = self.output(net)
+		return pred
 
 class Main():
-	def __init__(self, infer = False, input_dim = 684, CKP = CKP, model_file = None, device = device, pos_weight = 1):
+	def __init__(self, infer = False, input_dim = 768, output = 300, CKP = CKP, model_file = None, device = device, pos_weight = 1, mode = 'base'):
 		self.CKP = CKP
 		self.device = device
-		self.dnn = EALNetwork(input_dim, device = self.device)
+		if mode != 'base':
+			self.dnn = EALNetwork(inp = input_dim, output = output, device = self.device)
+		else:
+			self.dnn = EALSubNetwork(input_dim, device = self.device)
 		self.loss_fn = nn.BCEWithLogitsLoss()
 		
 		if infer:
@@ -129,19 +150,26 @@ class Main():
 		test_loader = DataLoader(test_dataset, batch_size = batch_size)
 		return test_loader, scaling_factor
 
-	def evaluate(self, dataloader):
+	def evaluate(self, dataloader, mode = 'base'):
 		runningloss = 0
 		for data in dataloader:
 			x, t = data
 			x = x.to(self.device, dtype = torch.float32)
+			entity = x[:, : 768]
+			context = x[:, 768 : 1536]
+			aspect = x[:, 1536 : ]
+			#print(entity.shape)
 			t = t.to(self.device, dtype = torch.float32)
-			pred = self.dnn(x).to(self.device)
+			if mode != 'base':
+				pred = self.dnn(x).to(self.device)
+			else:
+				pred = self.dnn(entity, aspect, context).to(self.device)
 			pred = pred.view(t.shape)
 			ls = self.loss_fn(pred, t)
 			runningloss += ls.item()
 		return runningloss / len(dataloader)
 
-	def train(self, train_loader, val_loader, epochs, opt, lr_scheduler = None, scaling_factor = 1, dataset_type = 'train-small', content = 'sentence'):
+	def train(self, train_loader, val_loader, epochs, opt, lr_scheduler = None, scaling_factor = 1, dataset_type = 'train-small', content = 'sentence', mode = 'base'):
 		best_devloss = sys.maxsize
 		loss_val = []
 		avg_loss_epoch = []
@@ -163,8 +191,14 @@ class Main():
 			for i, data in enumerate(train_loader, 0):
 				x, y = data
 				x = x.to(self.device, dtype = torch.float32)
+				entity = x[:, : 768]
+				context = x[:, 768 : 1536]
+				aspect = x[:, 1536 : ]
 				y = y.to(self.device, dtype = torch.float32)
-				y_pred = self.dnn(x)
+				if mode != 'base':
+					y_pred = self.dnn(x)
+				else:
+					y_pred = self.dnn(entity, aspect, context)
 				y_pred = y_pred.view(y.shape)
 				opt.zero_grad()
 				pos_weight = torch.tensor(scaling_factor)
@@ -210,7 +244,7 @@ class Main():
 		print('Predictions saved successfully')
 		return
 
-	def predict(self, CSV, test_loader, root_csv, content, tag, scaling_factor = 1):
+	def predict(self, CSV, test_loader, root_csv, content, tag, scaling_factor = 1, mode = 'base'):
 		pos_weight = torch.tensor(scaling_factor)
 		self.dnn.eval()
 		pred_class_tot = []
@@ -222,8 +256,14 @@ class Main():
 			for batch in test_loader:
 				x, y = batch
 				x = x.to(self.device)
+				entity = x[:, : 768]
+				context = x[:, 768 : 1536]
+				aspect = x[:, 1536 : ]
 				y = y.to(self.device)
-				y_pred = self.dnn(x)
+				if mode != 'base':
+					y_pred = self.dnn(x)
+				else:
+					y_pred = self.dnn(entity, aspect, context)
 				y_pred = y_pred.view(y.shape[0])
 				self.loss_fn.pos_weight = pos_weight
 				test_loss = self.loss_fn(y, y_pred)
