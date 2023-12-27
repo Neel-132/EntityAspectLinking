@@ -24,10 +24,16 @@ class EntityEmbedding(nn.Module):
 		self.bert = AutoModel.from_pretrained(self.pretrained, config = self.pretrained)
 		self.bert.to(device)
 
-	def forward(self, input_ids, dim = 150):
+	def forward(self, input_ids = None, dim = 768, segment_tensors = None, encoded_dict = None):
 		with torch.no_grad():
-			output = self.bert(input_ids)
-			return output[0][:, 0, :dim]
+			if encoded_dict is not None:
+				output = self.bert(**encoded_dict) #to handle sentence embeddings where input_id length exceeds 512
+			else:
+				if segment_tensors is not None:
+					output = self.bert(input_ids, segment_tensors)	
+				else:
+					output = self.bert(input_ids)	
+			return output.last_hidden_state[:, 0, : dim]
 
 
 

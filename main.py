@@ -1,9 +1,12 @@
 import utils
+import graphutils
 import os
 from argparse import ArgumentParser
 import learn_reps
 import torch
 import dnn
+import metric
+import map
 
 def parse_args():
 	parser = ArgumentParser(description = 'Process the command line arguments')
@@ -20,9 +23,9 @@ def parse_args():
 		help  = 'Pretrained model choices: BERT base, BERT large, RoBERTa')
 	parser.add_argument('-b', '--baseline', action = 'store_true', help = 'Train the baseline models')
 	parser.add_argument('-g', '--gnn', action = 'store_true', help = 'Train the gnn models')
-	parser.add_argument('-m', '--baselinemodel', choices = ['xgboost', 'svm', 'dnn'],
+	parser.add_argument('-m', '--baselinemodel', choices = ['xgboost', 'svm', 'dnn'], default = 'dnn',
 		help = 'Baseline models choices : XGBoost, Support Vector Machine, Deep Neural Network')
-	parser.add_argument('-gnn', '--gnnmodel', choices = ['gcn', 'gsg', 'gat'],
+	parser.add_argument('-gnn', '--gnnmodel', choices = ['gcn', 'gsg', 'gat'], default = 'gcn', 
 		help = 'Graph Neural Network model choices: GCN, GraphSAGE, GAT')
 	args = parser.parse_args()
 	return args
@@ -47,6 +50,9 @@ if __name__ == '__main__':
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 	args = parse_args()
+
+	if args.task not in ['linkpred', 'nodecls']:
+		print('Please provide appropriate task')
 
 	if args.trainingdataset not in ['train-small', 'train_remaining']:
 		print('Please provide a particular trainingdataset')
@@ -128,7 +134,7 @@ if __name__ == '__main__':
 
 	else:
 		train_target_ent_emb = utils.read_file(f'{train}_{content}_{pretrainedmodel}_targetentemb.pkl', PKL = PKL)
-
+		print(train_target_ent_emb.shape)
 	train_aspembpath = f'{PKL}\\{train}_{content}_{pretrainedmodel}_aspemb.pkl'
 	path = train_aspembpath
 
@@ -148,7 +154,9 @@ if __name__ == '__main__':
 	path = train_context_path
 
 	if not os.path.isfile(path):
-		train_context_emb = learn_reps.learn_text_emb(train_ent, tag = content)
+		#train_context_emb = learn_reps.learn_text_emb(train_ent, tag = content)
+		train_context_emb = learn_reps.learn_bert_text_emb(train_ent, tag = content)
+		print(train_context_emb.shape)
 		utils.save_file(f'{train}_{content}_contextemb.pkl', train_context_emb.cpu(), PKL = PKL)
 	else:
 		train_context_emb = utils.read_file(f'{train}_{content}_contextemb.pkl', PKL = PKL)
@@ -217,7 +225,8 @@ if __name__ == '__main__':
 	path = val_context_path
 
 	if not os.path.isfile(path):
-		val_context_emb = learn_reps.learn_text_emb(val_ent, tag = content)
+		#val_context_emb = learn_reps.learn_text_emb(val_ent, tag = content)
+		val_context_emb = learn_reps.learn_bert_text_emb(val_ent, tag = content)
 		utils.save_file(f'{val}_{content}_contextemb.pkl', val_context_emb.cpu(), PKL = PKL)
 	else:
 		val_context_emb = utils.read_file(f'{val}_{content}_contextemb.pkl', PKL = PKL)
@@ -286,7 +295,8 @@ if __name__ == '__main__':
 	path = test_context_path
 
 	if not os.path.isfile(path):
-		test_context_emb = learn_reps.learn_text_emb(test_ent, tag = content)
+		#test_context_emb = learn_reps.learn_text_emb(test_ent, tag = content)
+		test_context_emb = learn_reps.learn_bert_text_emb(test_ent, tag = content)
 		utils.save_file(f'{test}_{content}_contextemb.pkl', test_context_emb.cpu(), PKL = PKL)
 	else:
 		test_context_emb = utils.read_file(f'{test}_{content}_contextemb.pkl', PKL = PKL)
@@ -369,6 +379,51 @@ if __name__ == '__main__':
 					batch_size = test_batch_size, CKP = CKP, content = content, dataset_type = test, train = False, model_file = f'{train}_{content}_dnn')
 
 			utils.get_run_file(f'{test}_{content}_dnn_pred.csv', content = content, tag = test)
+			'''p, _ = metric.p_at_1(f'{RUN}\\test_sentence_dnn.run', f'{RUN}\\test.qrel') 
+			map, _ = map.mean_average_precision(f'{RUN}\\test_sentence_dnn.run', f'{RUN}\\test.qrel')
+
+			print("map" + "\t\t\t" + "all" + "\t" + "{:.4f}".format(map))
+			print("P@1" + "\t\t\t" + "all" + "\t" + "{:.4f}".format(p))'''
+
+	# Training the graph neural networks..
+	if args.gnn:
+		task = args.task
+		gnn_train_path = f'{PKL}\\{train}_{content}_{task}_graph.pkl'
+		path = gnn_train_path
+		if not os.path.isfile(path):
+			training_graph = graphutils.create_graph(train_eal, train_target_ent_emb, train_context_emb, train_asp_emb, train_asp_key, 
+			train_t_entity_emb, train_t_entity_key, train_a_entity_emb, train_a_entity_key)
+			print(training_graph)
+			utils.save_file(f'{train}_{content}_{task}_graph.pkl', training_graph)
+		else:
+			training_graph = utils.read_file(f'{train}_{content}_{task}_graph.pkl')
+			print(training_graph)
+
+		gnn_val_path = f'{PKL}\\{val}_{content}_{task}_graph.pkl'
+		path = gnn_val_path
+		if not os.path.isfile(path):
+			val_graph = graphutils.create_graph(val_eal, val_target_ent_emb, val_context_emb, val_asp_emb, val_asp_key, 
+			val_t_entity_emb, val_t_entity_key, val_a_entity_emb, val_a_entity_key)
+			print(val_graph)
+			utils.save_file(f'{val}_{content}_{task}_graph.pkl', val_graph)
+		else:
+			val_graph = utils.read_file(f'{val}_{content}_{task}_graph.pkl')
+			print(val_graph)
+
+		gnn_test_path = f'{PKL}\\{test}_{content}_{task}_graph.pkl'
+		path = gnn_test_path
+		if not os.path.isfile(path):
+			test_graph = graphutils.create_graph(test_eal, test_target_ent_emb, test_context_emb, test_asp_emb, test_asp_key, 
+			test_t_entity_emb, test_t_entity_key, test_a_entity_emb, test_a_entity_key)
+			print(test_graph)
+			utils.save_file(f'{test}_{content}_{task}_graph.pkl', test_graph)
+		else:
+			test_graph = utils.read_file(f'{test}_{content}_{task}_graph.pkl')
+			print(test_graph)
+
+
+
+
 			
 
 

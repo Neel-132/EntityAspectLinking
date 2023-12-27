@@ -14,7 +14,7 @@ def preprocess(text):
     text = re.sub("<(\"[^\"]*\"|'[^']*'|[^'\">])*>","",text)    
     return text
 
-def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-uncased', dim = 150):
+def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-uncased', dim = 768):
 	tokenizer = BertTokenizer.from_pretrained(pretrained)
 	pretrained = pretrained
 	ent_emb = embedding.EntityEmbedding(pretrained = pretrained, device = device)
@@ -33,7 +33,7 @@ def learn_word_emb(data, subject = 'target_entity', pretrained = 'bert-base-unca
 			tokens = tokenizer.tokenize(entity)
 			input_ids = tokenizer.convert_tokens_to_ids(tokens)
 			input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
-			target_ent_emb[i] = ent_emb(input_ids, dim = 150)
+			target_ent_emb[i] = ent_emb(input_ids, dim = 768)
 		print('Done learning target entity embeddings.')
 		return target_ent_emb
 
@@ -114,10 +114,10 @@ def learn_text_emb(data, subject = 'context', tag = 'sentence', pretrained = 'al
 	text_emb = embedding.TextEmbedding(device = device)
 	if subject not in ['context', 'aspect content']:
 		print('Please select one of context or aspect content as the subject')
-		return
+		exit()
 	if tag not in ['paragraph', 'sentence']:
 		print('Please select one of sentence or paragraph as the tag')
-		return
+		exit()
 	elif subject == 'context':
 		context_emb = torch.zeros(len(data), 384).to(device)
 		print('Learning context embeddings....')
@@ -159,6 +159,48 @@ def learn_text_emb(data, subject = 'context', tag = 'sentence', pretrained = 'al
 				content_emb[i] = torch.mean(token_emb, dim = 0)
 			print('Done learning aspect content representations.')
 			return content_emb
+
+def learn_bert_text_emb(data, subject = 'context', tag = 'sentence', pretrained = 'bert-base-uncased'):
+	tokenizer = BertTokenizer.from_pretrained(pretrained)
+	pretrained = pretrained
+	text_emb = embedding.EntityEmbedding(pretrained = pretrained, device = device)
+	if subject not in ['context', 'aspect content']:
+		print('Please select one of context or aspect content as the subject')
+		exit()
+	if tag not in ['paragraph', 'sentence']:
+		print('Please select one of sentence or paragraph as the tag')
+		exit()	
+
+	if subject == 'context':
+		context_emb = torch.zeros(len(data), 768).to(device)
+		if tag == 'sentence':
+			for i in tqdm(range(len(data))):
+				sentence = data[i]['sentence']
+				processed_sent = preprocess(sentence)
+				encoded_dict = tokenizer(processed_sent, add_special_tokens = True, max_length = 100, 
+					pad_to_max_length = True, return_tensors = 'pt', truncation = True)
+
+				'''processed_sent = '[CLS]' + processed_sent + '[SEP]'
+				tokenized_text = tokenizer.tokenize(processed_sent)
+				if i == 564:
+					print(len(tokenized_text))
+				segments_ids = [1] * len(tokenized_text)
+				input_ids = tokenizer.convert_tokens_to_ids(tokenized_text)
+				if i == 564:
+					print(len(input_ids))
+				input_ids = torch.tensor(input_ids).unsqueeze(0).to(device)
+				segment_tensors = torch.tensor(segments_ids).unsqueeze(0).to(device)				
+				output = text_emb(input_ids, segment_tensors = segment_tensors)'''
+				for key in encoded_dict:
+					encoded_dict[key] = encoded_dict[key].to(device)
+				output = text_emb(encoded_dict = encoded_dict) 
+				context_emb[i] = output
+			print('Done learning context embeddings.')
+			return context_emb
+
+	else:
+		pass
+
 
 
 
