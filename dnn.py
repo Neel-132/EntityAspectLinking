@@ -233,7 +233,6 @@ class Main():
 
 		print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' %
 			(epoch, epochs, self.evaluate(train_loader), self.evaluate(val_loader)))
-		print(avg_loss_epoch)
 
 
 	def get_test_id(self, root_csv, pred_class, pred_prob, content = 'sentence', tag = 'test', CSV = CSV):	
@@ -299,10 +298,10 @@ def run_dnn(device, CKP, dataset_type = 'train-small', content = 'sentence', tra
 		mainclass.predict(CSV, test_loader, root_csv, content = content, tag = dataset_type, scaling_factor = scaling_factor)
 	else:
 		mainclass = Main(CKP = CKP, device = device)
-		train_loader, scaling_factor = mainclass.prepare_traindataset(train_data, batch_size = batch_size)
-		'''train_loader, val_loader, scaling_factor = mainclass.prepare_merged_traindataset(train = train_data, val = val_data,
-		batch_size = batch_size, train_ratio = train_ratio, val_ratio = val_ratio)'''
-		val_loader = mainclass.prepare_traindataset(val_data, td = False, batch_size = batch_size)
+		#train_loader, scaling_factor = mainclass.prepare_traindataset(train_data, batch_size = batch_size)
+		train_loader, val_loader, scaling_factor = mainclass.prepare_merged_traindataset(train = train_data, val = val_data,
+		batch_size = batch_size, train_ratio = train_ratio, val_ratio = val_ratio)
+		#val_loader = mainclass.prepare_traindataset(val_data, td = False, batch_size = batch_size)
 		opt = optim.Adam(mainclass.dnn.parameters(), lr = lr, weight_decay = weight_decay)
 		lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt, mode = 'min', factor = 0.5, patience = 4)
 		mainclass.train(train_loader, val_loader, epochs, opt, lr_scheduler, scaling_factor = scaling_factor, dataset_type = dataset_type, content = content)

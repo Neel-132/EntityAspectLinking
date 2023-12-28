@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 import learn_reps
 import torch
 import dnn
+import gnn
 import metric
 import map
 
@@ -46,6 +47,13 @@ if __name__ == '__main__':
 	val_ratio = config['DNN']['Train']['val_ratio']
 	test_batch_size = config['DNN']['Test']['batch_size']
 
+	gnn_epochs = config['GNN']['Train']['epochs']
+	gnn_lr = config['GNN']['Train']['lr']
+	gnn_weight_decay = config['GNN']['Train']['weight_decay']
+	gnn_train_batch_size = config['GNN']['Train']['batch_size']
+	gnn_test_batch_size = config['GNN']['Test']['batch_size']
+
+
 
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -68,6 +76,11 @@ if __name__ == '__main__':
 		exit()
 	if args.baselinemodel not in ['dnn', 'xgboost', 'svm']:
 		print('Please provide correct baseline model')
+		exit()
+
+	if args.gnnmodel not in ['gcn', 'gat', 'gsg']:
+		print('Please provide a correct gnn model')
+		exit()
 
 	train = args.trainingdataset
 	val = args.validationdataset
@@ -77,6 +90,8 @@ if __name__ == '__main__':
 	path = train_path
 	pretrainedmodel = args.pretrainedmodel
 	baselinemodel = args.baselinemodel
+	task = args.task
+	gnnmodel = args.gnnmodel
 	if pretrainedmodel == 'roberta':
 		pass 
 	else:
@@ -134,7 +149,6 @@ if __name__ == '__main__':
 
 	else:
 		train_target_ent_emb = utils.read_file(f'{train}_{content}_{pretrainedmodel}_targetentemb.pkl', PKL = PKL)
-		print(train_target_ent_emb.shape)
 	train_aspembpath = f'{PKL}\\{train}_{content}_{pretrainedmodel}_aspemb.pkl'
 	path = train_aspembpath
 
@@ -387,7 +401,6 @@ if __name__ == '__main__':
 
 	# Training the graph neural networks..
 	if args.gnn:
-		task = args.task
 		gnn_train_path = f'{PKL}\\{train}_{content}_{task}_graph.pkl'
 		path = gnn_train_path
 		if not os.path.isfile(path):
@@ -420,6 +433,11 @@ if __name__ == '__main__':
 		else:
 			test_graph = utils.read_file(f'{test}_{content}_{task}_graph.pkl')
 			print(test_graph)
+
+
+		gnn.run_gnn(device = device, train_graph = training_graph, val_graph = val_graph, epochs = gnn_epochs, lr = gnn_lr, 
+			weight_decay = gnn_weight_decay, CKP = CKP, content = content, task = task, dataset_type = train, mode = gnnmodel.upper())
+
 
 
 
