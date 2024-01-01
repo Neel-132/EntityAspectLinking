@@ -195,7 +195,7 @@ def save_file(output_filename, data, PKL = PKL) -> None:
 	f.close()
 	return
 
-def read_file(input_filename, PKL = PKL) -> dict[int]:
+def read_file(input_filename, PKL = PKL):
     with open(f'{PKL}\\{input_filename}', 'rb') as f:
         data = pickle.load(f)
     print(f'{input_filename} read successfully')
@@ -206,6 +206,13 @@ def load_config(config_name):
     with open(config_name) as file:
         config = yaml.safe_load(file)
     return config
+
+def write_to_file(filename, data):
+    with open(filename, 'w') as f:
+        f.write(data)
+    print(f'{filename} written successfully.')
+    return
+
 
 
 

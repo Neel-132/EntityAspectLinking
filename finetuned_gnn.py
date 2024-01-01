@@ -18,11 +18,33 @@ import pickle
 from statistics import mean
 import graphutils
 import utils
+from transformers import AutoConfig, AutoModel
+
 torch.cuda.empty_cache()
 CSV = r'.\csvfiles'
 CKP = r'.\checkpoint'
 
 metadata = ['target_entity', 'aspect', 't_entities', 'a_entities'], [('target_entity', 'linked_to', 'aspect'), ('target_entity', 'associated_to', 't_entities'), ('aspect', 'associated_to', 'a_entities'), ('aspect', 'rev_linked_to', 'target_entity'), ('t_entities', 'rev_associated_to', 'target_entity'), ('a_entities', 'rev_associated_to', 'aspect')]
+
+
+class Bert(nn.Module):
+	def __init__(self, pretrained):
+		super().__init__()
+		self._pretrained = pretrained
+		self._config = AutoConfig.from_pretrained(self._pretrained)
+		self._tokenizer = AutoTokenizer.from_pretrained(self._pretrained)
+		self.bert = AutoModel.from_pretrained(self._pretrained, config = self._config)
+
+	def _preprocess(self, text):
+		encoded_dict = self._tokenizer.encode_plus(text = text, add_special_tokens = True, max_length = 512, padding = 'max_length', truncation = True, return_attention_mask = True)
+
+		return encoded_dict['input_ids'], encoded_dict['attention_mask']
+
+
+	def forward(self, input_ids, attention_mask, token_type_ids):
+		output = self.bert(input_ids = input_ids, attention_mask = attention_mask)
+		return output[:, 0, :]
+
 
 class GraphSage(nn.Module):
 	def __init__(self, activation, hidden_channel = 128, out_channel= 64):
@@ -88,7 +110,7 @@ class Classifier(nn.Module):
 
 
 class Model(nn.Module):
-	def __init__(self, output_channel = 300, activation = "relu", aggregation = "mean", encoder_type = "GSG"):
+	def __init__(self, lm, output_channel = 768, activation = "relu", aggregation = "mean", encoder_type = "GSG"):
 		super().__init__()
 		if activation not in ['relu', 'leaky_relu']:
 			print('Please provide appropriate activation function.')
@@ -97,7 +119,7 @@ class Model(nn.Module):
 		elif activation == 'relu':
 			activation = nn.ReLU()
 		self.activation = activation
-
+		self.bert = Bert(pretrained = lm)
 		self.lin1 = hetero_nn.Linear(-1, output_channel)
 		self.lin2 = hetero_nn.Linear(-1, output_channel)
 		self.encoder_type = encoder_type
@@ -114,32 +136,41 @@ class Model(nn.Module):
 
 		self.decoder = Classifier()
 
-	def forward(self, x_dict, y_dict, edge_index_dict, edge_label_index):
+	def forward(self, feature_dict, x_dict, y_dict, edge_index_dict, edge_label_index, mode):
 		for item in x_dict:
 			if item == 'target_entity':
-				x_dict[item] = self.lin2(torch.cat((x_dict[item], y_dict[item]), dim=1))
+				x_input_ids, x_attention_mask = self.bert._preprocess(feature_dict[mode][item]['x'][x_dict[item]])
+				y_input_ids, y_attention_mask = self.bert._preprocess(feature_dict[mode][item]['y'][y_dict[item]])
+				bert_xoutput = self.bert(input_ids = x_input_ids, attention_mask = x_attention_mask)
+				bert_youtput = self.bert(input_ids = y_input_ids, attention_mask = y_attention_mask)
+
+				x_dict[item] = self.lin2(torch.cat((bert_xoutput, bert_youtput), dim=1))
 				#x_dict[item] = self.lin1(y_dict[item])
 			else:
-				x_dict[item] = self.lin1(x_dict[item])
+				x_input_ids, x_attention_mask = self.bert._preprocess(feature_dict[mode][item][x_dict[item]])
+				bert_xoutput = self.bert(input_ids = x_input_ids, attention_mask = x_attention_mask)
+				x_dict[item] = bert_xoutput
+				#x_dict[item] = self.lin1(bert_xoutput)
 		z_dict = self.encoder(x_dict, edge_index_dict)
 		return self.decoder(z_dict, edge_label_index)
 
 
 class Main():
-	def __init__(self, graph, device, mode = "GCN", CKP = "./checkpoint", model_file = None, infer = False, task = 'linkpred'):
+	def __init__(self, feature_dict, lm, graph, device, mode = "GCN", CKP = "./checkpoint", model_file = None, infer = False, task = 'linkpred'):
 		self.device = device
 		self.checkpoint = CKP
 		self.loss_fn = BCEWithLogitsLoss() 
 		self.mode = mode
-		self.gnn = Model(encoder_type = self.mode)
+		self.ft_gnn = Model(encoder_type = self.mode, lm = lm)
 		self.task = task
+		self.feature_dict = feature_dict
 
 		if infer:
 			if model_file is None:
 				print('Please provide model file')
 				exit()
 			else:
-				self.gnn.load_state_dict(torch.load(f'{self.checkpoint}\\{model_file}'))
+				self.ft_gnn.load_state_dict(torch.load(f'{self.checkpoint}\\{model_file}'))
 	
 	def add_negative_edges(self, data, edge_types = ("target_entity", "linked_to", "aspect"), rev_edge_types = ("aspect", "rev_linked_to", "target_entity"), dtr = 0.999, nsr = 1):
 
@@ -177,12 +208,12 @@ class Main():
 		)
 		return data_loader
 
-	def evaluate(self, data_loader): 
+	def evaluate(self, mode, data_loader): 
 		total_loss = 0
 
 		for sampled_data in data_loader:
 			sampled_data = sampled_data.to(self.device)
-			pred = self.gnn(sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity','linked_to', 'aspect'].edge_label_index)
+			pred = self.ft_gnn(self.feature_dict, sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity','linked_to', 'aspect'].edge_label_index, mode = mode)
 			edge_label = sampled_data['target_entity','linked_to', 'aspect'].edge_label
 			edge_label = edge_label.to(self.device)
 			loss = self.loss_fn(pred, edge_label)
@@ -196,7 +227,7 @@ class Main():
 		train_loss = []
 		valid_loss = []
 		bestepoch = -99
-		self.gnn.to(self.device)
+		self.ft_gnn.to(self.device)
 		#optimizer = torch.optim.Adam(model.parameters(), lr= lr, weight_decay = weight_decay)
 
 		#pos_weight = torch.tensor([scaling_factor]).to(device)
@@ -205,15 +236,15 @@ class Main():
 		for epoch in trange(1,epochs + 1):
 			
 			total_loss = total_examples = 0
-			self.gnn.train()
+			self.ft_gnn.train()
 			if epoch == 1:
 				print('Epoch %d / %d : Train Loss = %.6f, Val Loss = %.6f'
-					% (epoch, epochs, self.evaluate(train_loader), self.evaluate(val_loader)))
+					% (epoch, epochs, self.evaluate(train_loader, mode = 'train'), self.evaluate(val_loader, mode = 'val')))
 			start = len(loss_val)
 			for sampled_data in train_loader:
 				optimizer.zero_grad()
 				sampled_data = sampled_data.to(self.device)
-				pred = self.gnn(sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity', 'linked_to', 'aspect'].edge_label_index)
+				pred = self.ft_gnn(self.feature_dict, sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity', 'linked_to', 'aspect'].edge_label_index)
 				edge_label = sampled_data['target_entity', 'linked_to', 'aspect'].edge_label
 				edge_label = edge_label.to(self.device)
 				loss = self.loss_fn(pred, edge_label)
@@ -223,13 +254,13 @@ class Main():
 			end = len(loss_val)
 			avg_loss_epoch.append(mean(loss_val[start : end + 1]))
 			with torch.no_grad():
-				self.gnn.eval()
-				trainloss = self.evaluate(train_loader)
-				valloss = self.evaluate(val_loader)
+				self.ft_gnn.eval()
+				trainloss = self.evaluate(train_loader, mode = 'train')
+				valloss = self.evaluate(val_loader, mode = 'val')
 				if valloss < best_devloss:
 					best_devloss = valloss
 					bestepoch = epoch
-					torch.save(self.gnn.state_dict(),
+					torch.save(self.ft_gnn.state_dict(),
 			                       f"{CKP}\\{dataset_type}_{content}_{self.task}_{self.mode}.pt")
 				if lr_scheduler is not None:
 					lr_scheduler.step(valloss)
@@ -243,7 +274,7 @@ class Main():
 				print("Early stopping")
 				break
 
-		print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, self.evaluate(train_loader), self.evaluate(val_loader)))
+		print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, self.evaluate(train_loader, mode = 'train'), self.evaluate(val_loader, mode = 'val')))
 
 	def get_test_id(self, pred_dict, asp_id_key, target_node_key):
 		final_dict = {}
@@ -260,13 +291,13 @@ class Main():
 
 
 	def predict(self, test_loader, root_csv, CSV = CSV):
-		self.gnn.eval()
+		self.ft_gnn.eval()
 		total_loss = 0	
 		preds = []
 		ground_truths = []
 
-		self.gnn.eval()
-		self.gnn.to(self.device)
+		self.ft_gnn.eval()
+		self.ft_gnn.to(self.device)
 
 		pred_dict = {}
 
@@ -274,7 +305,7 @@ class Main():
 			for sampled_data in tqdm.tqdm(test_loader):
 				sampled_data = sampled_data.to(self.device)
 				target = sampled_data['target_entity', 'aspect'].edge_label
-				pred = self.gnn(sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity', 'aspect'].edge_label_index)
+				pred = self.ft_gnn(self.feature_dict, sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity', 'aspect'].edge_label_index, mode = 'test')
 				test_loss = self.loss_fn(pred, target)
 				pred_prob = torch.sigmoid(pred)
 				preds.append(pred_prob)
@@ -302,28 +333,28 @@ class Main():
 		print('Test F1 score is %0.6f' % f1_sc)
 		return pred_dict
 
-def run_gnn(device, CKP, dtr, nsr, mode, asp_id_key, target_node_key, train = True, train_graph = None, val_graph = None, test_graph = None, model_file = None, epochs = 5, lr = 0.001, weight_decay = 1e-4, CSV = None, root_csv = None, batch_size = None, dataset_type = 'train-small', content = 'sentence', task = 'linkpred'):
+def run_gnn_finetuned(device, feature_dict, lm, CKP, dtr, nsr, mode, train = True, train_graph = None, val_graph = None, test_graph = None, model_file = None, epochs = 5, lr = 0.001, weight_decay = 1e-4, CSV = None, root_csv = None, batch_size = None, dataset_type = 'train-small', content = 'sentence', task = 'linkpred'):
 	start = time.time()
 	if not train:
 		if root_csv is None:
 			print('Please provide a root csv file')
 			exit()
-		mainclass = Main(graph = test_graph, CKP = CKP, device = device, infer = True, model_file = model_file, task = task, mode = mode)
+		mainclass = Main(feature_dict = feature_dict, lm = lm, graph = test_graph, CKP = CKP, device = device, infer = True, model_file = model_file, task = task, mode = mode)
 		test_loader = mainclass.prepare_dataloader(test_graph, batch_size = batch_size, tag = 'test', dtr = dtr, nsr = nsr)
 		pred_dict = mainclass.predict(test_loader, root_csv, CSV = CSV)
 		#mainclass.get_test_id(pred_dict, asp_id_key, target_node_key)
 		#print(len(pred_dict.keys()))
 	else: 
-		mainclass = Main(graph = train_graph, mode = mode, CKP = CKP, device = device, task = task)
+		mainclass = Main(feature_dict = feature_dict, lm = lm, graph = train_graph, mode = mode, CKP = CKP, device = device, task = task)
 		#print(batch_size)
 		train_loader = mainclass.prepare_dataloader(train_graph, batch_size = batch_size, dtr = dtr, nsr = nsr)
-		#sampled_data = next(iter(train_loader))
-		#print(sampled_data)
+		sampled_data = next(iter(train_loader))
+		print(sampled_data)
 		val_loader = mainclass.prepare_dataloader(val_graph, batch_size = batch_size, tag = 'val', dtr = dtr, nsr = nsr)
 		weight_decay = 1e-4
 		opt = optim.Adam(mainclass.gnn.parameters(), lr = lr, weight_decay = weight_decay)
 		lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt, mode = 'min', factor = 0.5, patience = 4)
-		mainclass.train(train_loader, val_loader, epochs, opt, lr_scheduler)
+		#mainclass.train(train_loader, val_loader, epochs, opt, lr_scheduler)
 
 	end = time.time()
 	if train:
