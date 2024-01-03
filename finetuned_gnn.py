@@ -18,13 +18,15 @@ import pickle
 from statistics import mean
 import graphutils
 import utils
-from transformers import AutoConfig, AutoModel
+from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 torch.cuda.empty_cache()
 CSV = r'.\csvfiles'
 CKP = r'.\checkpoint'
 
 metadata = ['target_entity', 'aspect', 't_entities', 'a_entities'], [('target_entity', 'linked_to', 'aspect'), ('target_entity', 'associated_to', 't_entities'), ('aspect', 'associated_to', 'a_entities'), ('aspect', 'rev_linked_to', 'target_entity'), ('t_entities', 'rev_associated_to', 'target_entity'), ('a_entities', 'rev_associated_to', 'aspect')]
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 
 class Bert(nn.Module):
@@ -35,15 +37,25 @@ class Bert(nn.Module):
 		self._tokenizer = AutoTokenizer.from_pretrained(self._pretrained)
 		self.bert = AutoModel.from_pretrained(self._pretrained, config = self._config)
 
+	def _freeze_bert(self):
+		print('Freezing all but the last layer of BERT....')
+		for param in self.bert.parameters():
+			param.requires_grad = False
+		for param in self.bert.encoder.layer[-1].parameters():
+			param.requires_grad = True
+		print('Successfully freezed BERT.')
+
 	def _preprocess(self, text):
-		encoded_dict = self._tokenizer.encode_plus(text = text, add_special_tokens = True, max_length = 512, padding = 'max_length', truncation = True, return_attention_mask = True)
+		encoded_dict = self._tokenizer.encode_plus(text = text, add_special_tokens = True, max_length = 512, padding = 'max_length', truncation = True, return_attention_mask = True, return_tensors = 'pt')
+		encoded_dict = {key: value.to(device) for key, value in encoded_dict.items()}
+		return encoded_dict
 
-		return encoded_dict['input_ids'], encoded_dict['attention_mask']
+		#return encoded_dict['input_ids'], encoded_dict['attention_mask']
 
 
-	def forward(self, input_ids, attention_mask, token_type_ids):
-		output = self.bert(input_ids = input_ids, attention_mask = attention_mask)
-		return output[:, 0, :]
+	def forward(self, encoded_dict):
+		output = self.bert(**encoded_dict)
+		return output.last_hidden_state[:, 0, :]
 
 
 class GraphSage(nn.Module):
@@ -120,6 +132,7 @@ class Model(nn.Module):
 			activation = nn.ReLU()
 		self.activation = activation
 		self.bert = Bert(pretrained = lm)
+		self.bert._freeze_bert()
 		self.lin1 = hetero_nn.Linear(-1, output_channel)
 		self.lin2 = hetero_nn.Linear(-1, output_channel)
 		self.encoder_type = encoder_type
@@ -138,20 +151,26 @@ class Model(nn.Module):
 
 	def forward(self, feature_dict, x_dict, y_dict, edge_index_dict, edge_label_index, mode):
 		for item in x_dict:
+			x_feat = torch.zeros(len(x_dict[item]), 768).to(device)
 			if item == 'target_entity':
-				x_input_ids, x_attention_mask = self.bert._preprocess(feature_dict[mode][item]['x'][x_dict[item]])
-				y_input_ids, y_attention_mask = self.bert._preprocess(feature_dict[mode][item]['y'][y_dict[item]])
-				bert_xoutput = self.bert(input_ids = x_input_ids, attention_mask = x_attention_mask)
-				bert_youtput = self.bert(input_ids = y_input_ids, attention_mask = y_attention_mask)
-
-				x_dict[item] = self.lin2(torch.cat((bert_xoutput, bert_youtput), dim=1))
-				#x_dict[item] = self.lin1(y_dict[item])
+				y_feat = torch.zeros(len(x_dict[item]), 768).to(device)
+				for el in range(len(x_dict[item])):
+					x_encoded_dict = self.bert._preprocess(feature_dict[mode][item]['x'][int(x_dict[item][el].cpu())])
+					y_encoded_dict = self.bert._preprocess(feature_dict[mode][item]['y'][int(x_dict[item][el].cpu())])
+					bert_xoutput = self.bert(x_encoded_dict)
+					bert_youtput = self.bert(y_encoded_dict)
+					x_feat[el] = bert_xoutput
+					y_feat[el] = bert_youtput
+				x_dict[item] = x_feat
+				y_dict[item] = y_feat
+				x_dict[item] = self.lin2(torch.cat((x_dict[item], y_dict[item]), dim=1))
 			else:
-				x_input_ids, x_attention_mask = self.bert._preprocess(feature_dict[mode][item][x_dict[item]])
-				bert_xoutput = self.bert(input_ids = x_input_ids, attention_mask = x_attention_mask)
-				x_dict[item] = bert_xoutput
-				#x_dict[item] = self.lin1(bert_xoutput)
-		z_dict = self.encoder(x_dict, edge_index_dict)
+				for el in range(len(x_dict[item])):
+					encoded_dict = self.bert._preprocess(feature_dict[mode][item][int(x_dict[item][el].cpu())])
+					bert_xoutput = self.bert(encoded_dict)
+					x_feat[el] = bert_xoutput
+				x_dict[item] = x_feat
+			z_dict = self.encoder(x_dict, edge_index_dict)
 		return self.decoder(z_dict, edge_label_index)
 
 
@@ -208,15 +227,18 @@ class Main():
 		)
 		return data_loader
 
-	def evaluate(self, mode, data_loader): 
+	def evaluate(self, tag, data_loader): 
 		total_loss = 0
 
 		for sampled_data in data_loader:
 			sampled_data = sampled_data.to(self.device)
-			pred = self.ft_gnn(self.feature_dict, sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity','linked_to', 'aspect'].edge_label_index, mode = mode)
+			#print(sampled_data)
+			pred = self.ft_gnn(self.feature_dict, sampled_data.x_dict, sampled_data.y_dict, sampled_data.edge_index_dict, sampled_data['target_entity','linked_to', 'aspect'].edge_label_index, tag)
 			edge_label = sampled_data['target_entity','linked_to', 'aspect'].edge_label
 			edge_label = edge_label.to(self.device)
 			loss = self.loss_fn(pred, edge_label)
+
+			print(loss)
 			total_loss += loss.item()
 		return total_loss/len(data_loader)
 
@@ -239,7 +261,7 @@ class Main():
 			self.ft_gnn.train()
 			if epoch == 1:
 				print('Epoch %d / %d : Train Loss = %.6f, Val Loss = %.6f'
-					% (epoch, epochs, self.evaluate(train_loader, mode = 'train'), self.evaluate(val_loader, mode = 'val')))
+					% (epoch, epochs, self.evaluate(data_loader = train_loader, tag = 'train'), self.evaluate(data_loader = val_loader, tag = 'val')))
 			start = len(loss_val)
 			for sampled_data in train_loader:
 				optimizer.zero_grad()
@@ -255,8 +277,8 @@ class Main():
 			avg_loss_epoch.append(mean(loss_val[start : end + 1]))
 			with torch.no_grad():
 				self.ft_gnn.eval()
-				trainloss = self.evaluate(train_loader, mode = 'train')
-				valloss = self.evaluate(val_loader, mode = 'val')
+				trainloss = self.evaluate(data_loader = train_loader, tag = 'train')
+				valloss = self.evaluate(data_loader = val_loader, tag = 'val')
 				if valloss < best_devloss:
 					best_devloss = valloss
 					bestepoch = epoch
@@ -274,7 +296,7 @@ class Main():
 				print("Early stopping")
 				break
 
-		print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, self.evaluate(train_loader, mode = 'train'), self.evaluate(val_loader, mode = 'val')))
+		print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, self.evaluate(data_loader = train_loader, tag = 'train'), self.evaluate(data_loader = val_loader, tag = 'val')))
 
 	def get_test_id(self, pred_dict, asp_id_key, target_node_key):
 		final_dict = {}
@@ -347,14 +369,15 @@ def run_gnn_finetuned(device, feature_dict, lm, CKP, dtr, nsr, mode, train = Tru
 	else: 
 		mainclass = Main(feature_dict = feature_dict, lm = lm, graph = train_graph, mode = mode, CKP = CKP, device = device, task = task)
 		#print(batch_size)
+		print(batch_size)
 		train_loader = mainclass.prepare_dataloader(train_graph, batch_size = batch_size, dtr = dtr, nsr = nsr)
 		sampled_data = next(iter(train_loader))
-		print(sampled_data)
+		#print(sampled_data)
 		val_loader = mainclass.prepare_dataloader(val_graph, batch_size = batch_size, tag = 'val', dtr = dtr, nsr = nsr)
 		weight_decay = 1e-4
-		opt = optim.Adam(mainclass.gnn.parameters(), lr = lr, weight_decay = weight_decay)
+		opt = optim.Adam(mainclass.ft_gnn.parameters(), lr = lr, weight_decay = weight_decay)
 		lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(opt, mode = 'min', factor = 0.5, patience = 4)
-		#mainclass.train(train_loader, val_loader, epochs, opt, lr_scheduler)
+		mainclass.train(train_loader, val_loader, epochs, opt, lr_scheduler)
 
 	end = time.time()
 	if train:

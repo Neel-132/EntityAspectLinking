@@ -10,6 +10,8 @@ import metric
 import finetuned_gnn
 import map
 
+os.environ['TORCH_USE_CUDA_DSA'] = '1'
+
 def parse_args():
 	parser = ArgumentParser(description = 'Process the command line arguments')
 	parser.add_argument('-tsk', '--task', choices = ['linkpred', 'nodecls'], default = 'linkpred', 
@@ -27,7 +29,7 @@ def parse_args():
 	parser.add_argument('-g', '--gnn', action = 'store_true', help = 'Train the gnn models')
 	parser.add_argument('-m', '--baselinemodel', choices = ['xgboost', 'svm', 'dnn'], default = 'dnn',
 		help = 'Baseline models choices : XGBoost, Support Vector Machine, Deep Neural Network')
-	parser.add_argument('-gnn', '--gnnmodel', choices = ['gcn', 'gsg', 'gat'], default = 'gcn', 
+	parser.add_argument('-gnn', '--gnnmodel', choices = ['gcn', 'gsg', 'gat'], default = 'gsg', 
 		help = 'Graph Neural Network model choices: GCN, GraphSAGE, GAT')
 
 	parser.add_argument('-ftg', '--finetunedgnn', action = 'store_true', help = 'Train the finetuned BERT + GNN model')
@@ -486,8 +488,8 @@ if __name__ == '__main__':
 			train_te_node_dict = utils.read_file(f'{train}_{content}_finetuned_{task}_te_nodedict.pkl')
 			train_asp_node_dict = utils.read_file(f'{train}_{content}_finetuned_{task}_asp_nodedict.pkl')
 			train_te_context_dict = utils.read_file(f'{train}_{content}_finetuned_{task}_context_dict.pkl')
-			train_t_ent_node_dict = utils.read_file(f'{train}_{content}_finetuned_{task}_t_ent_dict.pkl', train_t_ent_node_dict)
-			train_a_ent_node_dict = utils.read_file(f'{train}_{content}_finetuned_{task}_a_ent_dict.pkl', train_a_ent_node_dict)
+			train_t_ent_node_dict = utils.read_file(f'{train}_{content}_finetuned_{task}_t_ent_dict.pkl')
+			train_a_ent_node_dict = utils.read_file(f'{train}_{content}_finetuned_{task}_a_ent_dict.pkl')
 
 		gnn_val_ft_path = f'{PKL}\\{val}_{content}_finetuned_{task}_graph.pkl'
 		path = gnn_val_ft_path
@@ -533,11 +535,11 @@ if __name__ == '__main__':
 		feature_dict = {}
 
 
-		feature_dict['train'] = graphutils.get_feature_dict(train_graph.x_dict, data_te_node_dict = train_te_node_dict, data_te_context_dict = train_te_context_dict, data_asp_node_dict = train_asp_node_dict, data_te_node_dict = train_t_ent_node_dict, data_a_ent_node_dict = train_a_ent_node_dict)
+		feature_dict['train'] = graphutils.get_feature_dict(train_graph.x_dict, data_te_node_dict = train_te_node_dict, data_te_context_dict = train_te_context_dict, data_asp_node_dict = train_asp_node_dict, data_t_ent_node_dict = train_t_ent_node_dict, data_a_ent_node_dict = train_a_ent_node_dict)
 
-		feature_dict['val'] = graphutils.get_feature_dict(val_graph.x_dict, data_te_node_dict = val_te_node_dict, data_te_context_dict = val_te_context_dict, data_asp_node_dict = val_asp_node_dict, data_te_node_dict = val_t_ent_node_dict, data_a_ent_node_dict = val_a_ent_node_dict)
+		feature_dict['val'] = graphutils.get_feature_dict(val_graph.x_dict, data_te_node_dict = val_te_node_dict, data_te_context_dict = val_te_context_dict, data_asp_node_dict = val_asp_node_dict, data_t_ent_node_dict = val_t_ent_node_dict, data_a_ent_node_dict = val_a_ent_node_dict)
 
-		feature_dict['test'] = graphutils.get_feature_dict(test_graph.x_dict, data_te_node_dict = test_te_node_dict, data_te_context_dict = test_te_context_dict, data_asp_node_dict = test_asp_node_dict, data_te_node_dict = test_t_ent_node_dict, data_a_ent_node_dict = test_a_ent_node_dict)
+		feature_dict['test'] = graphutils.get_feature_dict(test_graph.x_dict, data_te_node_dict = test_te_node_dict, data_te_context_dict = test_te_context_dict, data_asp_node_dict = test_asp_node_dict, data_t_ent_node_dict = test_t_ent_node_dict, data_a_ent_node_dict = test_a_ent_node_dict)
 
 		finetuned_gnn.run_gnn_finetuned(feature_dict = feature_dict, lm = lm, device = device, train_graph = train_graph, val_graph = val_graph, epochs = gnn_ft_epochs, lr = gnn_ft_lr, 
 				weight_decay = gnn_ft_weight_decay, CKP = CKP, content = content, task = task, dataset_type = train, mode = gnnmodel.upper(), batch_size = gnn_train_ft_batch_size, dtr = train_ft_dtr, nsr = train_ft_nsr)
