@@ -1,5 +1,5 @@
 import torch_geometric.transforms as T
-from torch_geometric.nn import SAGEConv, to_hetero,GATConv, GCNConv
+from torch_geometric.nn import SAGEConv, to_hetero, GATConv, GCNConv, TransformerConv, GINConv
 import torch_geometric.nn as hetero_nn
 import torch.nn.functional as F
 import torch.nn as nn
@@ -12,6 +12,7 @@ import time
 import sys
 import pandas as pd
 from torch_geometric.loader import LinkNeighborLoader
+from sklearn.metrics import classification_report
 import torch.optim as optim
 from tqdm.auto import trange
 import pickle
@@ -45,8 +46,8 @@ class GraphAttention(nn.Module):
 		super().__init__()
 		self.activation = activation
 		self.heads = heads
-		self.conv1 = GATConv((-1, -1), hidden_channel, add_self_loops = False, drop_out = 0.8, v2 = True)
-		self.conv2 = GATConv((-1, -1), out_channel, add_self_loops = False, drop_out = 0.8, v2 = True)
+		self.conv1 = GATConv((-1, -1), hidden_channel, heads = heads, add_self_loops = False, drop_out = 0.6, v2 = True)
+		self.conv2 = GATConv((-1, -1), out_channel, heads = 1, add_self_loops = False, drop_out = 0.8, v2 = True)
 
 	def forward(self, x, edge_index):
 		x = self.conv1(x, edge_index)
@@ -54,6 +55,43 @@ class GraphAttention(nn.Module):
 		x = self.conv2(x, edge_index)
 
 		return x
+
+class TransformerConvolution(nn.Module):
+	''' Class to implement Transformer Convolution Network '''
+
+	def __init__(self, activation, hidden_channel = 128, out_channel = 64):
+		super().__init__()
+		self.activation = activation
+		self.conv1 = TransformerConv((-1, -1), hidden_channel, heads = 5, dropout = 0.4)
+		self.conv2 = TransformerConv((-1, -1), out_channel, dropout = 0.2)
+
+	def forward(self, x, edge_index):
+		x = self.conv1(x, edge_index)
+		x = self.activation(x)
+		x = self.conv2(x, edge_index)
+		return x
+
+class GraphIsomorphism(nn.Module):
+	''' Class to implement Graph Isomorphism Module'''
+	def __init__(self, activation, hidden_channel = 128, out_channel = 64):
+		super().__init__()
+		self.activation = activation
+		self.seq1 = nn.Sequential(hetero_nn.Linear(-1, hidden_channel), nn.Dropout(p = 0.4),
+			nn.BatchNorm1d(hidden_channel), self.activation, hetero_nn.Linear(-1, hidden_channel), nn.Dropout(p = 0.2), self.activation)
+		self.seq2 = nn.Sequential(hetero_nn.Linear(-1, out_channel), nn.Dropout(p = 0.6),
+			nn.BatchNorm1d(out_channel), self.activation, hetero_nn.Linear(-1, out_channel), nn.Dropout(p = 0.4))
+		self.conv1 = GINConv(self.seq1)
+		self.conv2 = GINConv(self.seq2)
+		self.lin = nn.Linear(out_channel, out_channel)
+	
+	def forward(self, x, edge_index):
+		x = self.conv1(x, edge_index)
+		x = self.conv2(x, edge_index)
+		x = self.activation(x)
+		x = self.lin(x)
+
+		return x
+
 
 class GraphConvolution(nn.Module):
 	""" Class to implement Graph Convolution Module """
@@ -107,8 +145,11 @@ class Model(nn.Module):
 			self.encoder = GraphConvolution(activation = self.activation)
 		elif self.encoder_type == "GSG":
 			self.encoder = GraphSage(activation = self.activation)
-		else:
-			pass
+		elif self.encoder_type == 'TCONV':
+			self.encoder = TransformerConvolution(activation = self.activation)
+		elif self.encoder_type == 'GIN':
+			self.encoder = GraphIsomorphism(activation = self.activation)
+
 
 		self.encoder = to_hetero(self.encoder, metadata, aggr=aggregation)
 
@@ -239,7 +280,7 @@ class Main():
 
 			print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, trainloss, valloss))
 
-			if epoch - bestepoch >= 10:
+			if epoch - bestepoch >= 1000:
 				print("Early stopping")
 				break
 
@@ -291,15 +332,24 @@ class Main():
 		ground_truth = torch.cat(ground_truths, dim=0)
 		ground_truth = ground_truth.detach()
 
+
 		y_pred_class = torch.tensor([1 if el > 0.5 else 0 for el in pred]).to(self.device)
 		print('Ground Truth', ground_truth.shape)
-		utils.write_to_file('ground_truth.txt', ground_truth)
+		utils.write_to_file('ground_truth.txt', ground_truth.cpu().numpy())
 		print('Pred Class', y_pred_class.shape)
-		utils.write_to_file('pred.txt', pred)
-		f1_sc = multiclass_f1_score(ground_truth, y_pred_class, num_classes = 2)
+		utils.write_to_file('pred.txt', pred.detach().cpu().numpy())
+		f1_sc = multiclass_f1_score(ground_truth, y_pred_class, num_classes = 2, average = 'micro')
 		avg_loss = total_loss / len(test_loader)
+		ground_truth = ground_truth.cpu().numpy()
+		y_pred_class = y_pred_class.detach().cpu().numpy()
+		cls_report = classification_report(ground_truth, y_pred_class)
+
 		print('Test loss is %0.6f' % avg_loss)
 		print('Test F1 score is %0.6f' % f1_sc)
+		print('Classification Report is:')
+		print(cls_report)
+
+
 		return pred_dict
 
 def run_gnn(device, CKP, dtr, nsr, mode, asp_id_key, target_node_key, train = True, train_graph = None, val_graph = None, test_graph = None, model_file = None, epochs = 5, lr = 0.001, weight_decay = 1e-4, CSV = None, root_csv = None, batch_size = None, dataset_type = 'train-small', content = 'sentence', task = 'linkpred'):

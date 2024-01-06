@@ -209,7 +209,8 @@ def load_config(config_name):
 
 def write_to_file(filename, data):
     with open(filename, 'w') as f:
-        f.write(data)
+        for el in data:
+            f.write(str(el) + '\n')
     print(f'{filename} written successfully.')
     return
 

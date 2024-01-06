@@ -54,8 +54,9 @@ class Bert(nn.Module):
 
 
 	def forward(self, encoded_dict):
-		output = self.bert(**encoded_dict)
-		return output.last_hidden_state[:, 0, :]
+		with torch.no_grad():
+			output = self.bert(**encoded_dict)
+			return output.last_hidden_state[:, 0, :]
 
 
 class GraphSage(nn.Module):
@@ -132,7 +133,7 @@ class Model(nn.Module):
 			activation = nn.ReLU()
 		self.activation = activation
 		self.bert = Bert(pretrained = lm)
-		self.bert._freeze_bert()
+		#self.bert._freeze_bert()
 		self.lin1 = hetero_nn.Linear(-1, output_channel)
 		self.lin2 = hetero_nn.Linear(-1, output_channel)
 		self.encoder_type = encoder_type
@@ -155,6 +156,8 @@ class Model(nn.Module):
 			if item == 'target_entity':
 				y_feat = torch.zeros(len(x_dict[item]), 768).to(device)
 				for el in range(len(x_dict[item])):
+					#print(feature_dict[mode][item]['x'][int(x_dict[item][el].cpu())])
+					#print(feature_dict[mode][item]['y'][int(x_dict[item][el].cpu())])
 					x_encoded_dict = self.bert._preprocess(feature_dict[mode][item]['x'][int(x_dict[item][el].cpu())])
 					y_encoded_dict = self.bert._preprocess(feature_dict[mode][item]['y'][int(x_dict[item][el].cpu())])
 					bert_xoutput = self.bert(x_encoded_dict)
@@ -164,13 +167,17 @@ class Model(nn.Module):
 				x_dict[item] = x_feat
 				y_dict[item] = y_feat
 				x_dict[item] = self.lin2(torch.cat((x_dict[item], y_dict[item]), dim=1))
+				#print(x_dict[item], x_dict[item].shape)
 			else:
 				for el in range(len(x_dict[item])):
 					encoded_dict = self.bert._preprocess(feature_dict[mode][item][int(x_dict[item][el].cpu())])
 					bert_xoutput = self.bert(encoded_dict)
+					#print(bert_xoutput)
 					x_feat[el] = bert_xoutput
 				x_dict[item] = x_feat
-			z_dict = self.encoder(x_dict, edge_index_dict)
+			#print(x_dict)
+		z_dict = self.encoder(x_dict, edge_index_dict)
+		#print(z_dict)
 		return self.decoder(z_dict, edge_label_index)
 
 
@@ -229,7 +236,8 @@ class Main():
 
 	def evaluate(self, tag, data_loader): 
 		total_loss = 0
-
+		print("Length", len(data_loader))
+		count = 0
 		for sampled_data in data_loader:
 			sampled_data = sampled_data.to(self.device)
 			#print(sampled_data)
@@ -237,9 +245,9 @@ class Main():
 			edge_label = sampled_data['target_entity','linked_to', 'aspect'].edge_label
 			edge_label = edge_label.to(self.device)
 			loss = self.loss_fn(pred, edge_label)
-
-			print(loss)
 			total_loss += loss.item()
+			print(count)
+			count += 1
 		return total_loss/len(data_loader)
 
 	def train(self, train_loader, val_loader, epochs = 50, optimizer = None, lr_scheduler = None, dataset_type = 'train-small', content = 'sentence'): #Add scaling factor
@@ -349,7 +357,7 @@ class Main():
 		utils.write_to_file('ground_truth.txt', ground_truth)
 		print('Pred Class', y_pred_class.shape)
 		utils.write_to_file('pred.txt', pred)
-		f1_sc = multiclass_f1_score(ground_truth, y_pred_class, num_classes = 2)
+		f1_sc = multiclass_f1_score(ground_truth, y_pred_class, num_classes = 2, average = 'macro')
 		avg_loss = total_loss / len(test_loader)
 		print('Test loss is %0.6f' % avg_loss)
 		print('Test F1 score is %0.6f' % f1_sc)

@@ -20,24 +20,24 @@ DNN:
 
 GNN:
   Train:
-    epochs: 60
-    lr: 2e-5
-    weight_decay: 0.0001
+    epochs: 100
+    lr: 3e-5
+    weight_decay: 1e-4
     batch_size: 128
-    disjoint_train_ratio: 0.999
+    disjoint_train_ratio: 0.6
     negative_sampling_ratio: 1
 
   Test:
     batch_size: 128
     disjoint_train_ratio: 0.999
-    negative_sampling_ratio: 1
+    negative_sampling_ratio: 3
 
 FinetunedGNN:
   Train:
     epochs: 60
-    lr: 0.005
+    lr: 2e-5
     weight_decay: 0.0001
-    batch_size: 5
+    batch_size: 256
     disjoint_train_ratio: 0.999
     negative_sampling_ratio: 1
 

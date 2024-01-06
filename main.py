@@ -29,7 +29,7 @@ def parse_args():
 	parser.add_argument('-g', '--gnn', action = 'store_true', help = 'Train the gnn models')
 	parser.add_argument('-m', '--baselinemodel', choices = ['xgboost', 'svm', 'dnn'], default = 'dnn',
 		help = 'Baseline models choices : XGBoost, Support Vector Machine, Deep Neural Network')
-	parser.add_argument('-gnn', '--gnnmodel', choices = ['gcn', 'gsg', 'gat'], default = 'gsg', 
+	parser.add_argument('-gnn', '--gnnmodel', choices = ['gcn', 'gsg', 'gat', 'tconv', 'gin'], default = 'gsg', 
 		help = 'Graph Neural Network model choices: GCN, GraphSAGE, GAT')
 
 	parser.add_argument('-ftg', '--finetunedgnn', action = 'store_true', help = 'Train the finetuned BERT + GNN model')
@@ -65,8 +65,8 @@ if __name__ == '__main__':
 
 
 	gnn_ft_epochs = config['FinetunedGNN']['Train']['epochs']
-	gnn_ft_lr = int(config['FinetunedGNN']['Train']['lr'])
-	gnn_ft_weight_decay = int(config['FinetunedGNN']['Train']['weight_decay'])
+	gnn_ft_lr = float(config['FinetunedGNN']['Train']['lr'])
+	gnn_ft_weight_decay = float(config['FinetunedGNN']['Train']['weight_decay'])
 	gnn_train_ft_batch_size = config['FinetunedGNN']['Train']['batch_size']
 	train_ft_dtr = config['FinetunedGNN']['Train']['disjoint_train_ratio']
 	train_ft_nsr = config['FinetunedGNN']['Train']['negative_sampling_ratio']
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 		print('Please provide correct baseline model')
 		exit()
 
-	if args.gnnmodel not in ['gcn', 'gat', 'gsg']:
+	if args.gnnmodel not in ['gcn', 'gat', 'gsg', 'tconv', 'gin']:
 		print('Please provide a correct gnn model')
 		exit()
 
