@@ -3,3 +3,6 @@ picklefiles/train-small_sentence.pkl
 *.pkl
 *.pt
 *.pt
+*.pt
+*.pt
+*.pt

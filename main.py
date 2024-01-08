@@ -17,8 +17,8 @@ def parse_args():
 	parser.add_argument('-tsk', '--task', choices = ['linkpred', 'nodecls'], default = 'linkpred', 
 		help = 'Task choices : Link Prediction, Node Classification')
 	parser.add_argument('-c', '--content', choices = ['sentence', 'paragraph'], default = 'sentence')
-	parser.add_argument('-trd', '--trainingdataset', type = str, choices = ['train-small', 'train_remaining'], default = 'train-small', 
-		help = 'Training dataset choices: train-small, train_remaining')
+	parser.add_argument('-trd', '--trainingdataset', type = str, choices = ['train-small', 'train-remaining'], default = 'train-small', 
+		help = 'Training dataset choices: train-small, train-remaining')
 	parser.add_argument('-vd', '--validationdataset', type = str, choices = ['validation'], required = True, 
 		help = 'Validation dataset choice : validate')
 	parser.add_argument('-tsd', '--testingdataset', type = str, choices = ['test', 'nanni-test', 'nanni-201'], default = 'test', 
@@ -59,8 +59,8 @@ if __name__ == '__main__':
 	gnn_train_batch_size = config['GNN']['Train']['batch_size']
 	gnn_test_batch_size = config['GNN']['Test']['batch_size']
 	train_dtr = config['GNN']['Train']['disjoint_train_ratio']
-	test_dtr = config['GNN']['Train']['disjoint_train_ratio']
-	train_nsr = config['GNN']['Test']['negative_sampling_ratio']
+	test_dtr = config['GNN']['Test']['disjoint_train_ratio']
+	train_nsr = config['GNN']['Train']['negative_sampling_ratio']
 	test_nsr = config['GNN']['Test']['negative_sampling_ratio']
 
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 	if args.task not in ['linkpred', 'nodecls']:
 		print('Please provide appropriate task')
 
-	if args.trainingdataset not in ['train-small', 'train_remaining']:
+	if args.trainingdataset not in ['train-small', 'train-remaining']:
 		print('Please provide a particular trainingdataset')
 		exit()
 	if args.testingdataset not in ['test', 'nanni-test', 'nanni-201']:

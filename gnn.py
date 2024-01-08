@@ -46,13 +46,16 @@ class GraphAttention(nn.Module):
 		super().__init__()
 		self.activation = activation
 		self.heads = heads
-		self.conv1 = GATConv((-1, -1), hidden_channel, heads = heads, add_self_loops = False, drop_out = 0.6, v2 = True)
-		self.conv2 = GATConv((-1, -1), out_channel, heads = 1, add_self_loops = False, drop_out = 0.8, v2 = True)
+		self.conv1 = GATConv((-1, -1), hidden_channel, heads = 7, add_self_loops = False, drop_out = 0.6, v2 = True)
+		self.conv2 = GATConv((-1, -1), out_channel, heads = 5, add_self_loops = False, drop_out = 0.4, v2 = True)
+		self.conv3 = GATConv((-1, -1), out_channel, heads = 1, add_self_loops = False, drop_out = 0.2, v2 = True)
 
 	def forward(self, x, edge_index):
 		x = self.conv1(x, edge_index)
 		x = self.activation(x)
 		x = self.conv2(x, edge_index)
+		x = self.activation(x)
+		x = self.conv3(x, edge_index)
 
 		return x
 
@@ -62,8 +65,8 @@ class TransformerConvolution(nn.Module):
 	def __init__(self, activation, hidden_channel = 128, out_channel = 64):
 		super().__init__()
 		self.activation = activation
-		self.conv1 = TransformerConv((-1, -1), hidden_channel, heads = 5, dropout = 0.4)
-		self.conv2 = TransformerConv((-1, -1), out_channel, dropout = 0.2)
+		self.conv1 = TransformerConv((-1, -1), hidden_channel, heads = 5, dropout = 0.6)
+		self.conv2 = TransformerConv((-1, -1), out_channel, dropout = 0.4)
 
 	def forward(self, x, edge_index):
 		x = self.conv1(x, edge_index)
@@ -280,7 +283,7 @@ class Main():
 
 			print('Epoch: %d / %d, Train loss: %0.6f, Valid loss: %0.6f' % (epoch, epochs, trainloss, valloss))
 
-			if epoch - bestepoch >= 1000:
+			if epoch - bestepoch >= 40:
 				print("Early stopping")
 				break
 
@@ -359,12 +362,15 @@ def run_gnn(device, CKP, dtr, nsr, mode, asp_id_key, target_node_key, train = Tr
 			print('Please provide a root csv file')
 			exit()
 		mainclass = Main(graph = test_graph, CKP = CKP, device = device, infer = True, model_file = model_file, task = task, mode = mode)
+		#mainclass.loss_fn.pos_weight = torch.tensor(nsr)
 		test_loader = mainclass.prepare_dataloader(test_graph, batch_size = batch_size, tag = 'test', dtr = dtr, nsr = nsr)
+		#print(dtr, nsr)
 		pred_dict = mainclass.predict(test_loader, root_csv, CSV = CSV)
 		#mainclass.get_test_id(pred_dict, asp_id_key, target_node_key)
 		#print(len(pred_dict.keys()))
 	else: 
 		mainclass = Main(graph = train_graph, mode = mode, CKP = CKP, device = device, task = task)
+		#mainclass.loss_fn.pos_weight = torch.tensor(nsr)
 		#print(batch_size)
 		train_loader = mainclass.prepare_dataloader(train_graph, batch_size = batch_size, dtr = dtr, nsr = nsr)
 		#sampled_data = next(iter(train_loader))

@@ -23,14 +23,14 @@ GNN:
     epochs: 100
     lr: 3e-5
     weight_decay: 1e-4
-    batch_size: 128
+    batch_size: 8
     disjoint_train_ratio: 0.6
-    negative_sampling_ratio: 1
+    negative_sampling_ratio: 5
 
   Test:
     batch_size: 128
     disjoint_train_ratio: 0.999
-    negative_sampling_ratio: 3
+    negative_sampling_ratio: 5
 
 FinetunedGNN:
   Train:
